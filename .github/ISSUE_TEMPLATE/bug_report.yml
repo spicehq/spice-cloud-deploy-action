@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a problem with the Spice Cloud Deploy Action.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior, including the exact action version (`@v1`, `@v1.2.3`, etc.).
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow snippet
+      description: Paste the relevant `uses:` block (redact secrets).
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Action logs
+      description: Paste the failing job log (redact tokens, API keys, hostnames).
+      render: text
+  - type: input
+    id: runner
+    attributes:
+      label: Runner
+      placeholder: ubuntu-latest / self-hosted / etc.
