@@ -47,7 +47,7 @@ inputs:
         tags: |
           environment: production
           team: data-platform
-          commit: ${{ github.sha }}
+          commit: <commit-sha>
 
       JSON form:
         tags: '{"environment":"production","team":"data-platform"}'
@@ -74,10 +74,10 @@ inputs:
     description: Number of replicas for this deployment (1-10).
     required: false
   branch:
-    description: Git branch attributed to the deployment. Defaults to `${{ github.ref_name }}`.
+    description: Git branch attributed to the deployment. Defaults to the `GITHUB_REF_NAME` environment variable.
     required: false
   commit-sha:
-    description: Git commit SHA attributed to the deployment. Defaults to `${{ github.sha }}`.
+    description: Git commit SHA attributed to the deployment. Defaults to the `GITHUB_SHA` environment variable.
     required: false
   commit-message:
     description: Commit message for the deployment. Defaults to the head-commit message of the GitHub event.
@@ -93,8 +93,8 @@ inputs:
 
       Example:
         secrets: |
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+          OPENAI_API_KEY=<openai-api-key>
+          PG_PASSWORD=<pg-password>
     required: false
   wait-for-completion:
     description: Poll the deployment until it succeeds or fails.
