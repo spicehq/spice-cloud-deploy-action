@@ -55,6 +55,15 @@ describe("parseTags", () => {
       expect(() => parseTags("env: a\nenv: b")).toThrow(/duplicate tag key/);
     });
 
+    it("does not treat Object.prototype property names as duplicates", () => {
+      // Regression: `if (key in out)` would falsely flag built-in property
+      // names like `toString` or `constructor` as duplicates on first use.
+      expect(parseTags("toString: bar\nconstructor: baz")).toEqual({
+        toString: "bar",
+        constructor: "baz",
+      });
+    });
+
     it("rejects values longer than 256 chars", () => {
       const long = "x".repeat(257);
       expect(() => parseTags(`big: ${long}`)).toThrow(/exceeds 256/);
@@ -73,10 +82,15 @@ describe("parseTags", () => {
       expect(() => parseTags("{ not json")).toThrow(/not valid JSON/);
     });
 
-    it("rejects JSON arrays", () => {
-      // Arrays don't start with `{`, so the parser falls through to YAML parsing.
-      // This test ensures wrapping a literal `{` array-like in JSON fails clearly.
+    it("rejects non-string JSON values (e.g. an array under a key)", () => {
       expect(() => parseTags('{"tags":["a","b"]}')).toThrow(/must be a string/);
+    });
+
+    it("treats a root-level JSON array as YAML and rejects it as malformed", () => {
+      // A literal `[…]` at the root doesn't start with `{`, so the parser
+      // falls through to the block-map path, where it's rejected because the
+      // first non-empty line lacks a "key: value" separator.
+      expect(() => parseTags('["a","b"]')).toThrow(/expected "key: value"/);
     });
 
     it("rejects JSON values that aren't strings", () => {
@@ -85,6 +99,10 @@ describe("parseTags", () => {
 
     it("rejects JSON keys with invalid characters", () => {
       expect(() => parseTags('{"1bad":"x"}')).toThrow(/start with a letter/);
+    });
+
+    it("rejects JSON keys containing ':' (would conflict with the YAML separator)", () => {
+      expect(() => parseTags('{"foo:bar":"value"}')).toThrow(/letters, numbers, and "_\.\/-"/);
     });
   });
 });

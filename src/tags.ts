@@ -1,6 +1,6 @@
 import { InputValidationError } from "./errors.js";
 
-const TAG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_:./-]{0,62}$/;
+const TAG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_./-]{0,62}$/;
 const MAX_VALUE_LENGTH = 256;
 
 /**
@@ -73,7 +73,7 @@ function parseBlockMap(raw: string): Record<string, string> {
     const value = stripQuotes(line.slice(colon + 1).trim());
 
     validateKey(key, `tags line ${i + 1}`);
-    if (key in out) {
+    if (Object.hasOwn(out, key)) {
       throw new InputValidationError(`tags line ${i + 1}: duplicate tag key "${key}".`);
     }
     validateValue(key, value);
@@ -96,7 +96,7 @@ function stripQuotes(value: string): string {
 function validateKey(key: string, context: string): void {
   if (!TAG_KEY_PATTERN.test(key)) {
     throw new InputValidationError(
-      `${context}: key "${key}" must start with a letter and contain only letters, numbers, and "_:./-" (max 63 chars).`,
+      `${context}: key "${key}" must start with a letter and contain only letters, numbers, and "_./-" (max 63 chars).`,
     );
   }
 }
