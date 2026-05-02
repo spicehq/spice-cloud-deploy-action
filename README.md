@@ -82,7 +82,7 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
 | `create-app-if-missing` | no | `false` | Create the app if it doesn't exist (requires `app-name` and `region`). |
 | `region`                | conditional | — | Spice Cloud region (e.g. `us-east-1`, `us-west-2`). Required for new apps. |
 | `visibility`            | no | `private` | `public` or `private` — only used on app creation. |
-| `tags`                  | no | — | YAML or JSON map of tag key/value pairs. Merged into existing app tags. |
+| `tags`                  | no | — | YAML or JSON map of tag key/value pairs. Merged into existing app tags. Tag values may contain only alphanumerics and `_@-`. The action auto-adds a `repository` tag from `GITHUB_REPOSITORY` (sanitizing `/` → `_`) unless you override it. |
 | `spicepod`              | no | `spicepod.yaml` | Path to the Spicepod manifest. Pushed to the app before deploy when present. |
 | `working-directory`     | no | `.` | Working directory used to resolve relative paths. |
 | `image-tag`             | no | — | Override the runtime image tag (e.g. `1.5.0-models`). |
@@ -143,6 +143,10 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
 ```
 
 > `tags` accepts either a YAML block mapping (shown above) or a JSON object string (e.g. `tags: '{"environment":"production","team":"data-platform"}'`). Tags are merged into the app's existing tags on every run.
+>
+> **Tag value rule:** the Spice Cloud API allows only alphanumerics and `_@-`. The action validates this locally so you fail fast with a clear error instead of a `400 Bad Request` on the server.
+>
+> **Auto-captured tags:** when `GITHUB_REPOSITORY` is set (always true on GitHub-hosted runners), the action adds a `repository` tag derived from that env var, with `/` rewritten to `_` so the value passes API validation. Setting `repository:` explicitly in your `tags` overrides the auto-captured value.
 
 ### Upsert app secrets and run a SQL smoke test
 

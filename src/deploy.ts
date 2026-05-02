@@ -8,7 +8,7 @@ import type { ProbeResult } from "./runtime.js";
 import { RuntimeClient } from "./runtime.js";
 import { parseSecrets } from "./secrets.js";
 import { readSpicepod } from "./spicepod.js";
-import { parseTags } from "./tags.js";
+import { mergeWithDefaultTags, parseTags } from "./tags.js";
 import type {
   App,
   CreateDeploymentBody,
@@ -107,7 +107,7 @@ async function resolveApp(api: SpiceApiClient, inputs: ActionInputs): Promise<Ap
     );
   }
 
-  const tags = parseTags(inputs.tagsRaw);
+  const tags = mergeWithDefaultTags(parseTags(inputs.tagsRaw));
   core.info(`App "${inputs.appName}" not found; creating in region "${inputs.region}".`);
   return api.createApp({
     name: inputs.appName,
@@ -132,7 +132,7 @@ async function maybeUpdateAppMetadata(
   app: App,
   inputs: ActionInputs,
 ): Promise<void> {
-  const tags = parseTags(inputs.tagsRaw);
+  const tags = mergeWithDefaultTags(parseTags(inputs.tagsRaw));
   if (!tags) return;
 
   const merged = { ...(app.tags ?? {}), ...tags };
@@ -140,7 +140,6 @@ async function maybeUpdateAppMetadata(
   core.startGroup("Update app tags");
   core.info(`PUT /v1/apps/${app.id} tags=${JSON.stringify(merged)}`);
   await api.updateApp(app.id, update);
-  app.tags = merged;
   core.endGroup();
 }
 

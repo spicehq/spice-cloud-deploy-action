@@ -6,7 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Auto-capture a `repository` tag from `GITHUB_REPOSITORY` when set, sanitized to fit the API's tag-value rule (`/` → `_`). Users can override by setting `repository:` explicitly in the `tags` input.
+
 ### Changed
+- `parseTags` now validates tag values against the Spice Cloud API rule (alphanumeric plus `_@-`). Previously the action only enforced length, so values like `repo: foo/bar` would round-trip to the API and fail there with a generic 400.
 - Bump the action runtime from Node 20 to Node 24 (`runs.using: node24`). Node 20 actions are deprecated by GitHub and will be force-defaulted to Node 24 on June 2, 2026, with Node 20 removed from the runner on September 16, 2026. The build target, CI matrix, `engines.node`, and `.nvmrc` are aligned to Node 24.
 
 ## [1.0.0] — 2026-05-02

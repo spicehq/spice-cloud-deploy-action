@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { parseTags } from "../src/tags.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  deriveDefaultTags,
+  mergeWithDefaultTags,
+  parseTags,
+  sanitizeTagValue,
+} from "../src/tags.js";
 
 describe("parseTags", () => {
   it("returns undefined for empty input", () => {
@@ -24,15 +29,9 @@ describe("parseTags", () => {
     });
 
     it("strips matching single or double quotes around values", () => {
-      expect(parseTags("a: \"with spaces\"\nb: 'single quoted'")).toEqual({
-        a: "with spaces",
-        b: "single quoted",
-      });
-    });
-
-    it("preserves a single colon inside the value", () => {
-      expect(parseTags("url: https://example.com:8080/x")).toEqual({
-        url: "https://example.com:8080/x",
+      expect(parseTags("a: \"alpha-num_v1\"\nb: 'beta-2'")).toEqual({
+        a: "alpha-num_v1",
+        b: "beta-2",
       });
     });
 
@@ -67,6 +66,21 @@ describe("parseTags", () => {
     it("rejects values longer than 256 chars", () => {
       const long = "x".repeat(257);
       expect(() => parseTags(`big: ${long}`)).toThrow(/exceeds 256/);
+    });
+
+    it("rejects values with characters not allowed by the API", () => {
+      // The Spice Cloud API allows only alphanumeric plus `_@-` in tag values.
+      expect(() => parseTags("repo: lukekim/home")).toThrow(/letters, numbers, and "_@-"/);
+      expect(() => parseTags('env: "prod env"')).toThrow(/letters, numbers, and "_@-"/);
+    });
+
+    it("accepts allowed value characters (alphanumeric, underscore, at-sign, hyphen)", () => {
+      expect(parseTags("a: foo_bar\nb: foo@bar\nc: foo-bar\nd: AB123")).toEqual({
+        a: "foo_bar",
+        b: "foo@bar",
+        c: "foo-bar",
+        d: "AB123",
+      });
     });
   });
 
@@ -103,6 +117,61 @@ describe("parseTags", () => {
 
     it("rejects JSON keys containing ':' (would conflict with the YAML separator)", () => {
       expect(() => parseTags('{"foo:bar":"value"}')).toThrow(/letters, numbers, and "_\.\/-"/);
+    });
+  });
+});
+
+describe("sanitizeTagValue", () => {
+  it("replaces disallowed characters with underscore", () => {
+    expect(sanitizeTagValue("lukekim/home")).toBe("lukekim_home");
+    expect(sanitizeTagValue("foo bar")).toBe("foo_bar");
+    expect(sanitizeTagValue("a/b/c")).toBe("a_b_c");
+  });
+
+  it("leaves already-valid characters alone", () => {
+    expect(sanitizeTagValue("alpha-num_123@v1")).toBe("alpha-num_123@v1");
+  });
+
+  it("truncates to 256 characters", () => {
+    const big = "a".repeat(300);
+    expect(sanitizeTagValue(big)).toHaveLength(256);
+  });
+});
+
+describe("deriveDefaultTags / mergeWithDefaultTags", () => {
+  const ORIGINAL = process.env.GITHUB_REPOSITORY;
+
+  beforeEach(() => {
+    delete process.env.GITHUB_REPOSITORY;
+  });
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = ORIGINAL;
+  });
+
+  it("returns no defaults when GITHUB_REPOSITORY is unset", () => {
+    expect(deriveDefaultTags({})).toEqual({});
+    expect(mergeWithDefaultTags(undefined, {})).toBeUndefined();
+  });
+
+  it("auto-captures `repository` from GITHUB_REPOSITORY, sanitizing '/'", () => {
+    expect(deriveDefaultTags({ GITHUB_REPOSITORY: "lukekim/home" })).toEqual({
+      repository: "lukekim_home",
+    });
+  });
+
+  it("merges defaults under user-supplied tags (user wins on conflict)", () => {
+    const merged = mergeWithDefaultTags(
+      { repository: "explicit", env: "prod" },
+      { GITHUB_REPOSITORY: "lukekim/home" },
+    );
+    expect(merged).toEqual({ repository: "explicit", env: "prod" });
+  });
+
+  it("returns just the defaults when the user provided no tags", () => {
+    expect(mergeWithDefaultTags(undefined, { GITHUB_REPOSITORY: "spicehq/x" })).toEqual({
+      repository: "spicehq_x",
     });
   });
 });
