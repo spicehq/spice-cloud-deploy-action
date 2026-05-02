@@ -4,11 +4,11 @@
   "private": true,
   "description": "GitHub Action to deploy apps to the Spice.ai Cloud Platform via the Management API.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/spiceai/spice-cloud-deploy-action#readme",
-  "bugs": "https://github.com/spiceai/spice-cloud-deploy-action/issues",
+  "homepage": "https://github.com/spicehq/spice-cloud-deploy-action#readme",
+  "bugs": "https://github.com/spicehq/spice-cloud-deploy-action/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/spiceai/spice-cloud-deploy-action.git"
+    "url": "https://github.com/spicehq/spice-cloud-deploy-action.git"
   },
   "engines": {
     "node": ">=20"

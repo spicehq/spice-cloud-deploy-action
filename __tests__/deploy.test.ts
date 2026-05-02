@@ -197,7 +197,7 @@ describe("runDeploy", () => {
     const createDeployment = vi.fn().mockResolvedValue(queuedDeployment);
     const api = fakeApi({ listApps, updateApp, createDeployment });
 
-    await runDeploy(api, { ...baseInputs, tagsRaw: "environment=prod" });
+    await runDeploy(api, { ...baseInputs, tagsRaw: "environment: prod" });
 
     expect(updateApp).toHaveBeenCalledWith(42, { tags: { existing: "1", environment: "prod" } });
   });

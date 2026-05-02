@@ -2,8 +2,8 @@
 
 # Spice Cloud Deploy Action
 
-[![CI](https://github.com/spiceai/spice-cloud-deploy-action/actions/workflows/ci.yml/badge.svg)](https://github.com/spiceai/spice-cloud-deploy-action/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/spiceai/spice-cloud-deploy-action?logo=github&color=1F8AC0)](https://github.com/spiceai/spice-cloud-deploy-action/releases)
+[![CI](https://github.com/spicehq/spice-cloud-deploy-action/actions/workflows/ci.yml/badge.svg)](https://github.com/spicehq/spice-cloud-deploy-action/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/spicehq/spice-cloud-deploy-action?logo=github&color=1F8AC0)](https://github.com/spicehq/spice-cloud-deploy-action/releases)
 [![Marketplace](https://img.shields.io/badge/marketplace-spice--cloud--deploy-1F8AC0?logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/spice-cloud-deploy)
 [![License](https://img.shields.io/badge/license-Apache%202.0-1F8AC0)](LICENSE)
 
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: spiceai/spice-cloud-deploy-action@v1
+      - uses: spicehq/spice-cloud-deploy-action@v1
         with:
           client-id:     ${{ secrets.SPICE_CLIENT_ID }}
           client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -49,12 +49,27 @@ The action returns once the deployment is `succeeded` (or fails the job if it's 
 
 1. Sign in to the [Spice.ai Portal](https://spice.ai).
 2. Open **Profile → OAuth Clients** and click **Create**.
-3. Grant the scopes you need. For a typical CI deploy:
-   `apps:read`, `apps:write`, `deployments:read`, `deployments:write`, `secrets:write`.
+3. **Grant the scopes you need** (see the table below). The action will fail with `403 Forbidden` if a required scope is missing.
 4. Copy the **client ID** and **client secret** — the secret is shown only once.
 5. In your GitHub repo (or org), add two secrets: `SPICE_CLIENT_ID` and `SPICE_CLIENT_SECRET`.
 
 The action exchanges the client credentials at `https://spice.ai/api/oauth/token` for a short-lived bearer token (cached for the run).
+
+### Scope cheat sheet
+
+Grant exactly the scopes for the features you use. The "All-in" row at the bottom is what you'd typically pick for a CI client that does everything this action supports.
+
+| Use this action to… | Required scopes |
+| --- | --- |
+| Resolve an existing app and trigger a deployment             | `apps:read`, `deployments:read`, `deployments:write` |
+| Create the app on first run (`create-app-if-missing: true`)  | + `apps:write` |
+| Push a `spicepod.yaml` manifest to the app before deploying  | + `apps:write` |
+| Set or merge app `tags`                                      | + `apps:write` |
+| Upsert app `secrets` before deploying                        | + `secrets:write` |
+| Run runtime smoke tests (`test-sql`, `test-nsql`, etc.)      | _no extra scope_ — uses `apps:read`, already required |
+| **All-in (recommended for a single CI client)**              | **`apps:read` `apps:write` `deployments:read` `deployments:write` `secrets:write`** |
+
+> Avoid the `*` wildcard scope in production — it grants `apps:delete`, `secrets:read` (decrypted via the portal), and `members:*`, which this action never needs.
 
 ## Inputs
 
@@ -67,7 +82,7 @@ The action exchanges the client credentials at `https://spice.ai/api/oauth/token
 | `create-app-if-missing` | no | `false` | Create the app if it doesn't exist (requires `app-name` and `region`). |
 | `region`                | conditional | — | Spice Cloud region (e.g. `us-east-1`, `us-west-2`). Required for new apps. |
 | `visibility`            | no | `private` | `public` or `private` — only used on app creation. |
-| `tags`                  | no | — | Multi-line `KEY=VALUE` pairs. Merged into existing app tags. |
+| `tags`                  | no | — | YAML or JSON map of tag key/value pairs. Merged into existing app tags. |
 | `spicepod`              | no | `spicepod.yaml` | Path to the Spicepod manifest. Pushed to the app before deploy when present. |
 | `working-directory`     | no | `.` | Working directory used to resolve relative paths. |
 | `image-tag`             | no | — | Override the runtime image tag (e.g. `1.5.0-models`). |
@@ -113,7 +128,7 @@ The action exchanges the client credentials at `https://spice.ai/api/oauth/token
 ### Bootstrap an app on first run
 
 ```yaml
-- uses: spiceai/spice-cloud-deploy-action@v1
+- uses: spicehq/spice-cloud-deploy-action@v1
   with:
     client-id:             ${{ secrets.SPICE_CLIENT_ID }}
     client-secret:         ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -122,15 +137,17 @@ The action exchanges the client credentials at `https://spice.ai/api/oauth/token
     create-app-if-missing: true
     visibility:            private
     tags: |
-      environment=production
-      team=data-platform
-      commit=${{ github.sha }}
+      environment: production
+      team: data-platform
+      commit: ${{ github.sha }}
 ```
+
+> `tags` accepts either a YAML block mapping (shown above) or a JSON object string (e.g. `tags: '{"environment":"production","team":"data-platform"}'`). Tags are merged into the app's existing tags on every run.
 
 ### Upsert app secrets and run a SQL smoke test
 
 ```yaml
-- uses: spiceai/spice-cloud-deploy-action@v1
+- uses: spicehq/spice-cloud-deploy-action@v1
   with:
     client-id:     ${{ secrets.SPICE_CLIENT_ID }}
     client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -144,7 +161,7 @@ The action exchanges the client credentials at `https://spice.ai/api/oauth/token
 ### Verify chat, search, and MCP after a successful deploy
 
 ```yaml
-- uses: spiceai/spice-cloud-deploy-action@v1
+- uses: spicehq/spice-cloud-deploy-action@v1
   with:
     client-id:     ${{ secrets.SPICE_CLIENT_ID }}
     client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -170,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: spiceai/spice-cloud-deploy-action@v1
+      - uses: spicehq/spice-cloud-deploy-action@v1
         with:
           client-id:     ${{ secrets.SPICE_CLIENT_ID }}
           client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -184,7 +201,7 @@ jobs:
 
 ```yaml
 - id: deploy
-  uses: spiceai/spice-cloud-deploy-action@v1
+  uses: spicehq/spice-cloud-deploy-action@v1
   with:
     client-id:     ${{ secrets.SPICE_CLIENT_ID }}
     client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
@@ -210,22 +227,14 @@ jobs:
 2. **Resolve or create the app.** If `app-id` is given, it's fetched directly. Otherwise the action looks up `app-name` via `GET /v1/apps`. With `create-app-if-missing: true`, a missing app is created in the requested `region`.
 3. **Sync metadata.** Tags from the `tags` input are merged into the app's existing tags via `PUT /v1/apps/{id}`.
 4. **Push the Spicepod.** When `spicepod.yaml` exists at `working-directory`, its contents are pushed to the app via `PUT /v1/apps/{id}` (`spicepod` field).
-5. **Upsert secrets.** Each `KEY=VALUE` line is sent to `POST /v1/apps/{id}/secrets` (upsert).
+5. **Upsert secrets.** Each `KEY=VALUE` line in `secrets` is sent to `POST /v1/apps/{id}/secrets` (upsert).
 6. **Trigger the deployment.** `POST /v1/apps/{id}/deployments` with `branch`, `commit_sha`, `commit_message`, plus any `image-tag`/`channel`/`replicas` overrides.
 7. **Poll until terminal.** `GET /v1/apps/{id}/deployments` is polled every `poll-interval-seconds` up to `timeout-seconds`.
 8. **Smoke-test.** When the deployment succeeds, the action fetches the app's primary API key, instantiates a [`SpiceClient`](https://www.npmjs.com/package/@spiceai/spice) against the regional runtime URL (`https://<region>-prod-aws-data.spiceai.io`), waits for `isSpiceReady()`, and runs each configured probe.
 
 The Action job step summary records the deployment metadata and a per-probe pass/fail table.
 
-## Required scopes
-
-| Action behavior | Minimum scopes |
-| --- | --- |
-| Resolve an app and trigger a deployment | `apps:read`, `deployments:read`, `deployments:write` |
-| Create the app on first run             | + `apps:write` |
-| Push `spicepod.yaml` to the app         | + `apps:write` |
-| Upsert app secrets                      | + `secrets:write` |
-| Run smoke tests (read API key)          | + `apps:read` (already required) |
+> Wondering which scopes to grant the OAuth client? See the [Scope cheat sheet](#scope-cheat-sheet) above.
 
 ## Compatibility
 
