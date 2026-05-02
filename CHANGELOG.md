@@ -12,7 +12,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Initial release of the Spice Cloud Deploy Action.
 - OAuth 2.0 client credentials authentication against the Spice Cloud Management API.
 - Resolve apps by `app-id` or `app-name`, with optional `create-app-if-missing` flow.
-- App tag merging via `tags` input.
+- App tag merging via `tags` input — accepts a YAML block mapping (recommended) or JSON object.
 - Optional Spicepod manifest push from `spicepod.yaml` before deploy.
 - Bulk app secret upsert from a multi-line `secrets` input (values masked in logs).
 - Deployment trigger with `branch`/`commit_sha`/`commit_message` auto-populated from the GitHub event.

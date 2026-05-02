@@ -30,7 +30,7 @@ jobs:
           create-app-if-missing: true
           spicepod:              examples/spicepod.yaml
           tags: |
-            source=spice-cloud-deploy-action
-            commit=${{ github.sha }}
+            source: spice-cloud-deploy-action
+            commit: ${{ github.sha }}
           test-sql:              SELECT 1
           test-warmup-seconds:   120
