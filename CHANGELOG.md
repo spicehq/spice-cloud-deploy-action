@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Auto-capture a `repository` tag from `GITHUB_REPOSITORY` when set, sanitized to fit the API's tag-value rule (`/` → `_`). Users can override by setting `repository:` explicitly in the `tags` input.
+
+### Changed
+- `parseTags` now validates tag values against the Spice Cloud API rule (alphanumeric plus `_@-`). Previously the action only enforced length, so values like `repo: foo/bar` would round-trip to the API and fail there with a generic 400.
+
 ## [1.0.0] — 2026-05-02
 
 ### Added

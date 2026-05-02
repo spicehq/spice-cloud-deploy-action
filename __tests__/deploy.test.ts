@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@actions/core", () => ({
   debug: vi.fn(),
@@ -9,6 +9,15 @@ vi.mock("@actions/core", () => ({
   startGroup: vi.fn(),
   warning: vi.fn(),
 }));
+
+const ORIGINAL_GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
+beforeEach(() => {
+  delete process.env.GITHUB_REPOSITORY;
+});
+afterEach(() => {
+  if (ORIGINAL_GITHUB_REPOSITORY === undefined) delete process.env.GITHUB_REPOSITORY;
+  else process.env.GITHUB_REPOSITORY = ORIGINAL_GITHUB_REPOSITORY;
+});
 
 import type { SpiceApiClient } from "../src/api.js";
 import { resolveRuntimeUrl, runDeploy } from "../src/deploy.js";
@@ -200,6 +209,32 @@ describe("runDeploy", () => {
     await runDeploy(api, { ...baseInputs, tagsRaw: "environment: prod" });
 
     expect(updateApp).toHaveBeenCalledWith(42, { tags: { existing: "1", environment: "prod" } });
+  });
+
+  it("auto-captures `repository` from GITHUB_REPOSITORY when no user tag overrides it", async () => {
+    process.env.GITHUB_REPOSITORY = "lukekim/home";
+    const listApps = vi.fn().mockResolvedValue([sampleApp]);
+    const updateApp = vi.fn().mockResolvedValue(sampleApp);
+    const createDeployment = vi.fn().mockResolvedValue(queuedDeployment);
+    const api = fakeApi({ listApps, updateApp, createDeployment });
+
+    await runDeploy(api, { ...baseInputs, tagsRaw: "environment: prod" });
+
+    expect(updateApp).toHaveBeenCalledWith(42, {
+      tags: { repository: "lukekim_home", environment: "prod" },
+    });
+  });
+
+  it("user-supplied `repository` tag wins over the auto-captured default", async () => {
+    process.env.GITHUB_REPOSITORY = "lukekim/home";
+    const listApps = vi.fn().mockResolvedValue([sampleApp]);
+    const updateApp = vi.fn().mockResolvedValue(sampleApp);
+    const createDeployment = vi.fn().mockResolvedValue(queuedDeployment);
+    const api = fakeApi({ listApps, updateApp, createDeployment });
+
+    await runDeploy(api, { ...baseInputs, tagsRaw: "repository: explicit-name" });
+
+    expect(updateApp).toHaveBeenCalledWith(42, { tags: { repository: "explicit-name" } });
   });
 
   it("runs probes and fails when one fails (fail-on-test-error=true)", async () => {

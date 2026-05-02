@@ -1,6 +1,8 @@
 import { InputValidationError } from "./errors.js";
 
 const TAG_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_./-]{0,62}$/;
+// Match the Spice Cloud API's tag-value rule: alphanumeric plus `_@-`.
+const TAG_VALUE_PATTERN = /^[A-Za-z0-9_@-]*$/;
 const MAX_VALUE_LENGTH = 256;
 
 /**
@@ -107,4 +109,47 @@ function validateValue(key: string, value: string): void {
       `tags: value for "${key}" exceeds ${MAX_VALUE_LENGTH} characters.`,
     );
   }
+  if (!TAG_VALUE_PATTERN.test(value)) {
+    throw new InputValidationError(
+      `tags: value for "${key}" must contain only letters, numbers, and "_@-" (got "${value}").`,
+    );
+  }
+}
+
+/**
+ * Replace any character not allowed by the Spice Cloud tag-value rule with `_`,
+ * and truncate to the API's max length. Used when auto-deriving tag values
+ * from GitHub context (e.g. `lukekim/home` → `lukekim_home`).
+ */
+export function sanitizeTagValue(value: string): string {
+  return value.replace(/[^A-Za-z0-9_@-]/g, "_").slice(0, MAX_VALUE_LENGTH);
+}
+
+/**
+ * Build the tag map of GitHub-context-derived defaults the action sets when the
+ * user does not explicitly override them. Today this is just `repository` from
+ * `GITHUB_REPOSITORY`, sanitized to fit the API's tag-value rule.
+ */
+export function deriveDefaultTags(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  if (env.GITHUB_REPOSITORY) {
+    defaults.repository = sanitizeTagValue(env.GITHUB_REPOSITORY);
+  }
+  return defaults;
+}
+
+/**
+ * Merge user-supplied tags on top of GitHub-context-derived defaults. Returns
+ * `undefined` when neither side has any tags so the caller can skip the API
+ * round-trip entirely.
+ */
+export function mergeWithDefaultTags(
+  userTags: Record<string, string> | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> | undefined {
+  const defaults = deriveDefaultTags(env);
+  const hasDefaults = Object.keys(defaults).length > 0;
+  const hasUser = userTags !== undefined && Object.keys(userTags).length > 0;
+  if (!hasDefaults && !hasUser) return undefined;
+  return { ...defaults, ...(userTags ?? {}) };
 }
