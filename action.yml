@@ -1,5 +1,5 @@
 name: Spice Cloud Deploy
-description: Deploy a Spice.ai Cloud app via the Management API using OAuth client credentials, with optional post-deploy SQL/NSQL/search/chat/MCP smoke tests.
+description: Deploy Spice.ai Cloud apps with OAuth client credentials and optional SQL/NSQL/search/chat/MCP smoke tests.
 author: Spice AI
 
 branding:
