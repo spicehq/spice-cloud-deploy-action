@@ -4,8 +4,8 @@ import { DeploymentFailedError, DeploymentTimeoutError, InputValidationError } f
 import type { ActionInputs } from "./inputs.js";
 import { deriveRuntimeUrl, deriveRuntimeUrlFromCname } from "./inputs.js";
 import { buildProbePlans } from "./probes.js";
-import { RuntimeClient } from "./runtime.js";
 import type { ProbeResult } from "./runtime.js";
+import { RuntimeClient } from "./runtime.js";
 import { parseSecrets } from "./secrets.js";
 import { readSpicepod } from "./spicepod.js";
 import { parseTags } from "./tags.js";
