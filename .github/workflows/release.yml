@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify dist/ is committed
+        shell: bash
+        run: |
+          npm run build
+          if ! git diff --exit-code --quiet dist/; then
+            echo "::error::dist/ is stale on this tag. Re-tag after running 'npm run build'."
+            exit 1
+          fi
+
+      - name: Move floating major-version tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF##*/}"
+          major="${tag%%.*}"
+          echo "Moving ${major} to ${tag}"
+          git tag -f "${major}" "${tag}"
+          git push --force origin "refs/tags/${major}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF##*/}"
+          notes_file="$(mktemp)"
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="${tag#v}" '
+              /^## \[?'"${tag#v}"'\]?/ { capture=1; next }
+              /^## / && capture { exit }
+              capture { print }
+            ' CHANGELOG.md > "$notes_file"
+          fi
+          if [ ! -s "$notes_file" ]; then
+            echo "Release ${tag}" > "$notes_file"
+          fi
+          gh release create "$tag" --title "$tag" --notes-file "$notes_file"

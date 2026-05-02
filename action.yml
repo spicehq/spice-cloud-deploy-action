@@ -1,0 +1,189 @@
+name: Spice Cloud Deploy
+description: Deploy a Spice.ai Cloud app via the Management API using OAuth client credentials, with optional post-deploy SQL/NSQL/search/chat/MCP smoke tests.
+author: Spice AI
+
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  client-id:
+    description: |
+      OAuth client ID for the Spice Cloud Management API.
+      Create one at https://spice.ai under Profile → OAuth Clients.
+    required: true
+  client-secret:
+    description: |
+      OAuth client secret. Store as a repository or environment secret
+      (e.g. `secrets.SPICE_CLIENT_SECRET`); never inline.
+    required: true
+  app-id:
+    description: Numeric Spice Cloud app ID. Either `app-id` or `app-name` is required.
+    required: false
+  app-name:
+    description: |
+      Spice Cloud app name. Used to look up `app-id` when not provided.
+      Required when `create-app-if-missing` is true.
+    required: false
+  create-app-if-missing:
+    description: Create the app if it does not exist. Requires `app-name`.
+    required: false
+    default: "false"
+  region:
+    description: |
+      Spice Cloud region (e.g. `us-east-1`, `us-west-2`).
+      Required when `create-app-if-missing` is true. For existing apps the
+      region is read from the API and this input is informational only.
+    required: false
+  visibility:
+    description: Visibility for new apps (`public` or `private`). Only used with `create-app-if-missing`.
+    required: false
+    default: private
+  tags:
+    description: |
+      Newline-separated `KEY=VALUE` pairs to set as app tags.
+      Tags are merged with existing tags on each run. Lines starting with `#` are comments.
+
+      Example:
+        tags: |
+          environment=production
+          team=data-platform
+          commit=${{ github.sha }}
+    required: false
+  spicepod:
+    description: |
+      Path to a Spicepod manifest. When the file exists, its contents are pushed to
+      the app via `PUT /v1/apps/{appId}` before the deployment is triggered.
+    required: false
+    default: spicepod.yaml
+  working-directory:
+    description: Working directory. Relative paths in `spicepod` are resolved against this.
+    required: false
+    default: .
+  image-tag:
+    description: Runtime image tag override for this deployment (e.g. `1.5.0-models`).
+    required: false
+  channel:
+    description: Update channel for this deployment (`stable`, `preview`, `nightly`, `internal`).
+    required: false
+  replicas:
+    description: Number of replicas for this deployment (1-10).
+    required: false
+  branch:
+    description: Git branch attributed to the deployment. Defaults to `${{ github.ref_name }}`.
+    required: false
+  commit-sha:
+    description: Git commit SHA attributed to the deployment. Defaults to `${{ github.sha }}`.
+    required: false
+  commit-message:
+    description: Commit message for the deployment. Defaults to the head-commit message of the GitHub event.
+    required: false
+  debug:
+    description: Enable debug mode on the deployment.
+    required: false
+    default: "false"
+  secrets:
+    description: |
+      Newline-separated `KEY=VALUE` pairs to upsert as app secrets before deploy.
+      Lines starting with `#` are comments. Values are masked in logs.
+
+      Example:
+        secrets: |
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+    required: false
+  wait-for-completion:
+    description: Poll the deployment until it succeeds or fails.
+    required: false
+    default: "true"
+  timeout-seconds:
+    description: Maximum number of seconds to wait when `wait-for-completion` is true.
+    required: false
+    default: "600"
+  poll-interval-seconds:
+    description: Seconds between deployment status polls.
+    required: false
+    default: "10"
+  test-sql:
+    description: |
+      SQL query to execute against the deployed runtime as a smoke test
+      (uses the `@spiceai/spice` SDK with HTTP fallback).
+    required: false
+  test-nsql:
+    description: |
+      Natural-language query to send to `/v1/nsql` (text-to-SQL) as a smoke test.
+      Uses the `@spiceai/spice` SDK.
+    required: false
+  test-chat:
+    description: |
+      Either a plain prompt string (sent as a single user message) or a JSON body
+      to POST to `/v1/chat/completions` (OpenAI-compatible).
+    required: false
+  test-chat-model:
+    description: Model to use for `test-chat` and `test-nsql` (when applicable).
+    required: false
+  test-search:
+    description: |
+      JSON body to POST to `/v1/search`.
+
+      Example:
+        test-search: '{"datasets":["my_dataset"],"text":"hello world"}'
+    required: false
+  test-mcp-tool:
+    description: Name of an MCP tool to invoke against `/v1/mcp` as a smoke test.
+    required: false
+  test-mcp-arguments:
+    description: JSON-encoded arguments object passed as `params.arguments` to the MCP tool call.
+    required: false
+  test-warmup-seconds:
+    description: |
+      Maximum seconds to wait for the runtime to become ready (`isSpiceReady()`)
+      before running probes. Set to 0 to skip the warmup wait.
+    required: false
+    default: "60"
+  test-timeout-seconds:
+    description: Per-probe HTTP timeout in seconds.
+    required: false
+    default: "30"
+  runtime-url:
+    description: |
+      Override the runtime base URL probes connect to. When unset, the URL is
+      derived from the resolved app's region as
+      `https://<region>-prod-aws-data.spiceai.io` (e.g.
+      `https://us-east-1-prod-aws-data.spiceai.io`).
+    required: false
+  fail-on-test-error:
+    description: Fail the action when any probe fails. Set to `false` to record failures without failing the job.
+    required: false
+    default: "true"
+  api-url:
+    description: Base URL for the Spice Cloud Management API.
+    required: false
+    default: https://api.spice.ai
+  oauth-token-url:
+    description: OAuth token endpoint URL.
+    required: false
+    default: https://spice.ai/api/oauth/token
+  scope:
+    description: Optional OAuth scope to request when exchanging client credentials (space-separated).
+    required: false
+
+outputs:
+  app-id:
+    description: Resolved numeric app ID.
+  app-name:
+    description: Resolved app name.
+  app-url:
+    description: Public URL of the app (`https://<app-name>.spice.ai`).
+  deployment-id:
+    description: ID of the created deployment.
+  deployment-status:
+    description: Final deployment status (`queued`, `in_progress`, `succeeded`, `failed`).
+  deployment-created-at:
+    description: ISO 8601 timestamp the deployment was created.
+  test-results:
+    description: JSON array of `{ name, ok, durationMs, detail?, error? }` for each runtime probe.
+
+runs:
+  using: node20
+  main: dist/index.js

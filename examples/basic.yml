@@ -1,0 +1,25 @@
+name: Deploy to Spice Cloud
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spice-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: spiceai/spice-cloud-deploy-action@v1
+        with:
+          client-id:     ${{ secrets.SPICE_CLIENT_ID }}
+          client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
+          app-name:      my-app
+          spicepod:      spicepod.yaml
+          test-sql:      SELECT 1

@@ -1,0 +1,36 @@
+name: Test action
+
+on:
+  workflow_dispatch:
+    inputs:
+      app-name:
+        description: Spice Cloud app name to deploy to.
+        required: true
+      region:
+        description: Region for create-if-missing.
+        default: us-west-2
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: spice-cloud
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy + smoke test
+        uses: ./
+        with:
+          client-id:             ${{ secrets.SPICE_CLIENT_ID }}
+          client-secret:         ${{ secrets.SPICE_CLIENT_SECRET }}
+          app-name:              ${{ inputs.app-name }}
+          region:                ${{ inputs.region }}
+          create-app-if-missing: true
+          spicepod:              examples/spicepod.yaml
+          tags: |
+            source=spice-cloud-deploy-action
+            commit=${{ github.sha }}
+          test-sql:              SELECT 1
+          test-warmup-seconds:   120

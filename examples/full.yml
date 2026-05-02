@@ -1,0 +1,58 @@
+name: Deploy to Spice Cloud (full)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+      url: ${{ steps.deploy.outputs.app-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: deploy
+        uses: spiceai/spice-cloud-deploy-action@v1
+        with:
+          client-id:             ${{ secrets.SPICE_CLIENT_ID }}
+          client-secret:         ${{ secrets.SPICE_CLIENT_SECRET }}
+          app-name: ${{ github.event_name == 'pull_request' && format('analytics-pr-{0}', github.event.number) || 'analytics' }}
+          region:                us-east-1
+          create-app-if-missing: true
+          channel:               ${{ github.event_name == 'pull_request' && 'preview' || 'stable' }}
+          replicas:              ${{ github.event_name == 'pull_request' && 1 || 3 }}
+          tags: |
+            environment=${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+            team=data-platform
+            commit=${{ github.sha }}
+          secrets: |
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+          test-sql:        SELECT count(*) AS n FROM taxi_trips
+          test-nsql:       Show me revenue by month for the last 6 months
+          test-chat:       "Summarize today's top 3 trips"
+          test-chat-model: gpt-4o-mini
+          test-search: |
+            {"datasets":["docs"],"text":"refund policy","limit":3}
+          test-mcp-tool:      list_resources
+          test-mcp-arguments: '{"limit":5}'
+
+      - if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.app-url }}';
+            const status = '${{ steps.deploy.outputs.deployment-status }}';
+            const id = '${{ steps.deploy.outputs.deployment-id }}';
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `Spice Cloud preview: **${status}** (deployment \`${id}\`) → ${url}`
+            });

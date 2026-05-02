@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an enhancement to the Spice Cloud Deploy Action.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow are you trying to build, and what's currently in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How would you like this to work? Include desired inputs/outputs if relevant.
