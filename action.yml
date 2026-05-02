@@ -41,14 +41,18 @@ inputs:
     default: private
   tags:
     description: |
-      Newline-separated `KEY=VALUE` pairs to set as app tags.
-      Tags are merged with existing tags on each run. Lines starting with `#` are comments.
+      App tags as a YAML or JSON map. Merged with existing tags on each run.
 
-      Example:
+      YAML form (recommended):
         tags: |
-          environment=production
-          team=data-platform
-          commit=${{ github.sha }}
+          environment: production
+          team: data-platform
+          commit: ${{ github.sha }}
+
+      JSON form:
+        tags: '{"environment":"production","team":"data-platform"}'
+
+      Lines beginning with `#` are treated as comments.
     required: false
   spicepod:
     description: |
