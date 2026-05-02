@@ -19,7 +19,7 @@ Deploy a [Spice.ai Cloud](https://spice.ai) app from any GitHub workflow using O
 - **One step, full lifecycle** — resolve or create the app, push your `spicepod.yaml`, upsert app secrets, trigger the deployment, and (optionally) wait for it to finish.
 - **Post-deploy smoke tests** — verify the freshly-deployed runtime answers SQL, NSQL, search, chat-completion, and MCP requests before declaring the workflow green. SQL/NSQL/health probes use the official [`@spiceai/spice` SDK](https://www.npmjs.com/package/@spiceai/spice).
 - **Tags, region, replicas, channel** — all the dials you'd expect, plus deployment metadata (`branch`, `commit_sha`, `commit_message`) auto-populated from the GitHub event.
-- **Cross-platform** — Node 20 JavaScript action; runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` runners.
+- **Cross-platform** — Node 24 JavaScript action; runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` runners.
 
 ## Quickstart
 
@@ -238,7 +238,7 @@ The Action job step summary records the deployment metadata and a per-probe pass
 
 ## Compatibility
 
-- Runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` (Node 20 JavaScript action).
+- Runs on `ubuntu-latest`, `macos-latest`, and `windows-latest` (Node 24 JavaScript action).
 - Bundles the `@spiceai/spice` SDK in HTTP mode — no Apache Arrow Flight gRPC dependencies are required at runtime.
 - Compatible with self-hosted runners that allow outbound HTTPS to `spice.ai`, `api.spice.ai`, and the regional `*-prod-aws-data.spiceai.io` host.
 

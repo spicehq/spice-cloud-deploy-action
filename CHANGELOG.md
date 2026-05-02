@@ -6,6 +6,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- Bump the action runtime from Node 20 to Node 24 (`runs.using: node24`). Node 20 actions are deprecated by GitHub and will be force-defaulted to Node 24 on June 2, 2026, with Node 20 removed from the runner on September 16, 2026. The build target, CI matrix, `engines.node`, and `.nvmrc` are aligned to Node 24.
+
 ## [1.0.0] — 2026-05-02
 
 ### Added

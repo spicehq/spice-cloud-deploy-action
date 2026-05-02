@@ -189,5 +189,5 @@ outputs:
     description: JSON array of `{ name, ok, durationMs, detail?, error? }` for each runtime probe.
 
 runs:
-  using: node20
+  using: node24
   main: dist/index.js
