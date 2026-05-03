@@ -105,7 +105,7 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
 | `test-mcp-arguments`    | no | `{}` | JSON-encoded arguments for the MCP tool call. |
 | `test-warmup-seconds`   | no | `60` | Max wait for `isSpiceReady()` before running probes. |
 | `test-timeout-seconds`  | no | `30` | Per-probe HTTP timeout. |
-| `dataset-ready-timeout-seconds` | no | `300` | Max wait for every dataset to leave `initializing` (via `GET /v1/datasets?status=true`). Action fails immediately if any dataset enters `error`. Set to `0` to skip. |
+| `dataset-ready-timeout-seconds` | no | `300` | Max wait for every dataset (via `GET /v1/datasets?status=true`) to reach a terminal-ok state (`ready`/`disabled`/`refreshing`). The job fails the moment any dataset enters `error`, or when the timeout elapses while any dataset is still pending — independent of `fail-on-test-error`. Set to `0` to skip the check. |
 | `runtime-url`           | no | derived | Override probe base URL. By default derived from the app's region as `https://<region>-prod-aws-data.spiceai.io`. |
 | `fail-on-test-error`    | no | `true` | Fail the job when any probe fails. |
 | `api-url`               | no | `https://api.spice.ai` | Management API base URL. |

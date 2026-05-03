@@ -385,6 +385,37 @@ describe("runDeploy", () => {
     expect(probeSql).not.toHaveBeenCalled();
   });
 
+  it("dataset readiness failures are fatal even when fail-on-test-error is false", async () => {
+    // The opt-out for the dataset check is `dataset-ready-timeout-seconds: 0`.
+    // `fail-on-test-error` only governs runtime-probe results.
+    const listApps = vi.fn().mockResolvedValue([sampleApp]);
+    const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: "rk", api_key_2: null });
+    const api = fakeApi({ listApps, createDeployment, getApiKeys });
+
+    const fakeRuntime = {
+      waitForReady: vi.fn().mockResolvedValue(undefined),
+      waitForDatasetsReady: vi.fn().mockRejectedValue(
+        Object.assign(new Error("1 dataset(s) failed to load: foo: bad creds"), {
+          name: "DatasetReadinessError",
+          datasets: [{ name: "foo", status: "Error", error_message: "bad creds" }],
+        }),
+      ),
+    } as unknown as RuntimeClient;
+
+    await expect(
+      runDeploy(
+        api,
+        {
+          ...baseInputs,
+          datasetReadyTimeoutSeconds: 60,
+          failOnTestError: false,
+        },
+        { runtimeFactory: () => fakeRuntime },
+      ),
+    ).rejects.toThrow(/dataset.*failed to load/);
+  });
+
   it("returns dataset states when all datasets are ready", async () => {
     const listApps = vi.fn().mockResolvedValue([sampleApp]);
     const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);

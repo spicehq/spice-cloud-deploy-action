@@ -152,8 +152,11 @@ inputs:
   dataset-ready-timeout-seconds:
     description: |
       Maximum seconds to wait for every dataset reported by `GET /v1/datasets?status=true`
-      to leave the `initializing` state before running runtime probes. The action fails
-      immediately if any dataset enters the `error` state. Set to `0` to skip the check.
+      to reach a terminal-ok state (`ready`, `disabled`, or `refreshing`) before running
+      runtime probes. The action fails the job immediately if any dataset enters `error`,
+      or if the timeout elapses while datasets are still pending — regardless of
+      `fail-on-test-error`, which only governs runtime-probe results. To disable the
+      dataset check entirely, set this to `0`.
     required: false
     default: "300"
   runtime-url:

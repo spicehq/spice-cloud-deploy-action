@@ -177,10 +177,18 @@ export class RuntimeClient {
   }
 
   /**
-   * Poll `/v1/datasets?status=true` until every dataset is in a terminal-ready state
-   * (`ready`, `disabled`, or `refreshing`). Throws `DatasetReadinessError` immediately
-   * if any dataset reports `error`, or if the timeout expires while datasets are still
-   * `initializing`.
+   * Poll `/v1/datasets?status=true` until every dataset is in a terminal-ok state.
+   *
+   * State machine (statuses are matched case-insensitively):
+   *   - `error`                          → throw `DatasetReadinessError` immediately.
+   *   - `ready` / `disabled` / `refreshing`
+   *                                      → terminal-ok; counts toward "all loaded".
+   *   - `initializing`, `shuttingdown`,
+   *     or any unknown value             → still pending; keep polling.
+   *
+   * On timeout, throws `DatasetReadinessError` listing each non-terminal-ok dataset
+   * with its current status so the user can tell `initializing` from `shuttingdown`
+   * or an unrecognized value.
    */
   async waitForDatasetsReady(timeoutSeconds: number): Promise<DatasetState[]> {
     if (timeoutSeconds <= 0) return [];
@@ -197,7 +205,7 @@ export class RuntimeClient {
         continue;
       }
 
-      const errored = last.filter((d) => normalizeStatus(d.status) === "error");
+      const errored = last.filter((d) => classifyStatus(d.status) === "error");
       if (errored.length > 0) {
         const detail = errored
           .map((d) => `${d.name}: ${d.error_message ?? d.error?.code ?? "<no message>"}`)
@@ -208,23 +216,23 @@ export class RuntimeClient {
         );
       }
 
-      const pending = last.filter((d) => normalizeStatus(d.status) === "initializing");
+      const pending = last.filter((d) => classifyStatus(d.status) === "pending");
       if (pending.length === 0) {
         core.info(`All ${last.length} dataset(s) loaded.`);
         return last;
       }
 
       core.info(
-        `${last.length - pending.length}/${last.length} dataset(s) loaded (still initializing: ${pending.map((d) => d.name).join(", ")})`,
+        `${last.length - pending.length}/${last.length} dataset(s) loaded (waiting on: ${pending.map((d) => `${d.name} [${d.status}]`).join(", ")})`,
       );
       await this.clock.sleep(3_000);
     }
 
     const stillPending = last
-      .filter((d) => normalizeStatus(d.status) === "initializing")
-      .map((d) => d.name);
+      .filter((d) => classifyStatus(d.status) === "pending")
+      .map((d) => `${d.name} [${d.status}]`);
     throw new DatasetReadinessError(
-      `Datasets did not finish loading within ${timeoutSeconds}s (still initializing: ${stillPending.join(", ") || "<unknown>"}).`,
+      `Datasets did not finish loading within ${timeoutSeconds}s (waiting on: ${stillPending.join(", ") || "<unknown>"}).`,
       last,
     );
   }
@@ -313,8 +321,19 @@ export function truncate(value: string, max: number): string {
   return `${value.slice(0, max)}…`;
 }
 
-function normalizeStatus(status: string): string {
-  return (status ?? "").trim().toLowerCase();
+const TERMINAL_OK_DATASET_STATUSES = new Set(["ready", "disabled", "refreshing"]);
+
+/**
+ * Bucket a dataset status string into one of three classes the readiness loop
+ * needs to make decisions. Anything that isn't an explicit terminal-ok or `error`
+ * value (e.g. `shuttingdown`, future-added states, typos) is treated as `pending`
+ * so the loop keeps polling rather than declaring a misclassified success.
+ */
+function classifyStatus(status: string): "ok" | "error" | "pending" {
+  const s = (status ?? "").trim().toLowerCase();
+  if (s === "error") return "error";
+  if (TERMINAL_OK_DATASET_STATUSES.has(s)) return "ok";
+  return "pending";
 }
 
 function summarizeChat(body: string): string | undefined {

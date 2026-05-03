@@ -263,6 +263,55 @@ describe("RuntimeClient", () => {
     await expect(rt.waitForDatasetsReady(5)).rejects.toThrow(/did not finish loading/);
   });
 
+  it("waitForDatasetsReady accepts disabled and refreshing as terminal-ok", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { name: "a", status: "Ready" },
+          { name: "b", status: "Disabled" },
+          { name: "c", status: "Refreshing" },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+    });
+    const datasets = await rt.waitForDatasetsReady(60);
+    expect(datasets.map((d) => d.name)).toEqual(["a", "b", "c"]);
+  });
+
+  it("waitForDatasetsReady treats shuttingdown and unknown statuses as still-pending (does not return early)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { name: "a", status: "Ready" },
+          { name: "b", status: "ShuttingDown" },
+          { name: "c", status: "QuantumFlux" },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const clock = makeClock();
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+      clock,
+    });
+    await expect(rt.waitForDatasetsReady(5)).rejects.toThrow(
+      /did not finish loading.*ShuttingDown.*QuantumFlux/s,
+    );
+  });
+
   it("waitForDatasetsReady is a no-op when timeout is 0", async () => {
     const fetchImpl = vi.fn();
     const rt = new RuntimeClient({

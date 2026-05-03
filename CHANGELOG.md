@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - Auto-capture a `repository` tag from `GITHUB_REPOSITORY` when set, sanitized to fit the API's tag-value rule (`/` → `_`). Users can override by setting `repository:` explicitly in the `tags` input.
-- New post-deploy dataset readiness check: poll `GET /v1/datasets?status=true` until every dataset leaves `initializing`, fail immediately on `error`. Configured via `dataset-ready-timeout-seconds` (default `300`, set to `0` to skip). Dataset states are surfaced as a `datasets` action output and as a table in the GitHub job step summary.
+- New post-deploy dataset readiness check: poll `GET /v1/datasets?status=true` until every dataset reaches a terminal-ok state (`ready`, `disabled`, or `refreshing`); fail the job immediately on `error` or on timeout-while-pending — regardless of `fail-on-test-error`, which still only governs runtime-probe results. Statuses like `shuttingdown` and any unrecognized values are treated as still-pending so the loop never returns a false-positive "loaded". Configured via `dataset-ready-timeout-seconds` (default `300`, set `0` to skip). Dataset states are surfaced as a `datasets` action output and as a table in the GitHub job step summary.
 
 ### Changed
 - `parseTags` now validates tag values against the Spice Cloud API rule (alphanumeric plus `_@-`). Previously the action only enforced length, so values like `repo: foo/bar` would round-trip to the API and fail there with a generic 400.

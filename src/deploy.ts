@@ -243,10 +243,11 @@ async function runPostDeployChecks(
       try {
         datasets = await runtime.waitForDatasetsReady(inputs.datasetReadyTimeoutSeconds);
       } catch (err) {
+        // Dataset readiness failures are always fatal once the check is opted in
+        // (i.e. `dataset-ready-timeout-seconds > 0`) — `fail-on-test-error` only
+        // governs runtime-probe results. The opt-out is `dataset-ready-timeout-seconds: 0`.
         if (err instanceof DatasetReadinessError) datasets = err.datasets;
-        const message = (err as Error).message;
-        if (inputs.failOnTestError) throw new Error(message);
-        core.warning(message);
+        throw err;
       }
     }
 
