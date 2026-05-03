@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@actions/core", () => ({
+  debug: vi.fn(),
   info: vi.fn(),
   setSecret: vi.fn(),
   warning: vi.fn(),
@@ -158,6 +159,122 @@ describe("RuntimeClient", () => {
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(url).toBe("https://data.spiceai.io/v1/chat/completions");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer k");
+  });
+
+  it("getDatasets requests /v1/datasets?status=true with x-api-key", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ name: "a", status: "Ready" }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://us-west-2-prod-aws-data.spiceai.io",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+    });
+    const result = await rt.getDatasets();
+    expect(result).toEqual([{ name: "a", status: "Ready" }]);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe("https://us-west-2-prod-aws-data.spiceai.io/v1/datasets?status=true");
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("k");
+  });
+
+  it("waitForDatasetsReady returns once all datasets are ready", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { name: "a", status: "Initializing" },
+            { name: "b", status: "Ready" },
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            { name: "a", status: "Ready" },
+            { name: "b", status: "Ready" },
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    const clock = makeClock();
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+      clock,
+    });
+    const datasets = await rt.waitForDatasetsReady(60);
+    expect(datasets.every((d) => d.status === "Ready")).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("waitForDatasetsReady throws DatasetReadinessError on error state", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify([{ name: "a", status: "Error", error_message: "auth failed" }]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+    });
+    await expect(rt.waitForDatasetsReady(60)).rejects.toMatchObject({
+      name: "DatasetReadinessError",
+      message: expect.stringContaining("auth failed"),
+    });
+  });
+
+  it("waitForDatasetsReady throws on timeout while still initializing", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ name: "a", status: "Initializing" }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const clock = makeClock();
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+      clock,
+    });
+    await expect(rt.waitForDatasetsReady(5)).rejects.toThrow(/did not finish loading/);
+  });
+
+  it("waitForDatasetsReady is a no-op when timeout is 0", async () => {
+    const fetchImpl = vi.fn();
+    const rt = new RuntimeClient({
+      apiKey: "k",
+      baseUrl: "https://x.example",
+      warmupSeconds: 0,
+      timeoutSeconds: 5,
+      sdkFactory: () => makeSdk(),
+      fetchImpl,
+    });
+    expect(await rt.waitForDatasetsReady(0)).toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("probeSearch reports failures with body context", async () => {

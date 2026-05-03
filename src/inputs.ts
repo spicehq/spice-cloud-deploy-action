@@ -36,6 +36,7 @@ export interface ActionInputs {
   testMcpArguments?: string;
   testWarmupSeconds: number;
   testTimeoutSeconds: number;
+  datasetReadyTimeoutSeconds: number;
   runtimeUrl?: string;
   failOnTestError: boolean;
 }
@@ -214,6 +215,7 @@ export function readInputs(): ActionInputs {
     testMcpArguments: getOptional("test-mcp-arguments"),
     testWarmupSeconds: getRequiredInt("test-warmup-seconds", 60, { min: 0 }),
     testTimeoutSeconds: getRequiredInt("test-timeout-seconds", 30, { min: 1 }),
+    datasetReadyTimeoutSeconds: getRequiredInt("dataset-ready-timeout-seconds", 300, { min: 0 }),
     runtimeUrl,
     failOnTestError: getBool("fail-on-test-error", true),
   };

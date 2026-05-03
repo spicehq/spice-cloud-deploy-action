@@ -51,6 +51,7 @@ const baseInputs: ActionInputs = {
   oauthTokenUrl: "https://spice.ai/api/oauth/token",
   testWarmupSeconds: 0,
   testTimeoutSeconds: 30,
+  datasetReadyTimeoutSeconds: 0,
   failOnTestError: true,
 };
 
@@ -240,7 +241,7 @@ describe("runDeploy", () => {
   it("runs probes and fails when one fails (fail-on-test-error=true)", async () => {
     const listApps = vi.fn().mockResolvedValue([sampleApp]);
     const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
-    const getApiKeys = vi.fn().mockResolvedValue({ primary: "rk_test" });
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: "rk_test", api_key_2: null });
     const api = fakeApi({ listApps, createDeployment, getApiKeys });
 
     const probeSql = vi.fn().mockResolvedValue<ProbeResult>({
@@ -268,7 +269,7 @@ describe("runDeploy", () => {
   it("skips probes when API key is unavailable but warns when fail-on-test-error=false", async () => {
     const listApps = vi.fn().mockResolvedValue([sampleApp]);
     const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
-    const getApiKeys = vi.fn().mockResolvedValue({});
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: null, api_key_2: null });
     const api = fakeApi({ listApps, createDeployment, getApiKeys });
 
     const result = await runDeploy(api, {
@@ -309,7 +310,7 @@ describe("runDeploy", () => {
   it("runs all configured probes in order", async () => {
     const listApps = vi.fn().mockResolvedValue([sampleApp]);
     const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
-    const getApiKeys = vi.fn().mockResolvedValue({ primary: "rk" });
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: "rk", api_key_2: null });
     const api = fakeApi({ listApps, createDeployment, getApiKeys });
 
     const calls: string[] = [];
@@ -351,5 +352,60 @@ describe("runDeploy", () => {
     );
 
     expect(calls).toEqual(["sql", "nsql", "chat", "search", "mcp"]);
+  });
+
+  it("waits for datasets before probes and fails when any dataset is in error state", async () => {
+    const listApps = vi.fn().mockResolvedValue([sampleApp]);
+    const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: "rk", api_key_2: null });
+    const api = fakeApi({ listApps, createDeployment, getApiKeys });
+
+    const waitForDatasetsReady = vi.fn().mockRejectedValue(
+      Object.assign(new Error("1 dataset(s) failed to load: foo: bad creds"), {
+        name: "DatasetReadinessError",
+        datasets: [{ name: "foo", status: "Error", error_message: "bad creds" }],
+      }),
+    );
+    const probeSql = vi.fn();
+    const fakeRuntime = {
+      waitForReady: vi.fn().mockResolvedValue(undefined),
+      waitForDatasetsReady,
+      probeSql,
+    } as unknown as RuntimeClient;
+
+    await expect(
+      runDeploy(
+        api,
+        { ...baseInputs, datasetReadyTimeoutSeconds: 60, testSql: "SELECT 1" },
+        { runtimeFactory: () => fakeRuntime },
+      ),
+    ).rejects.toThrow(/dataset.*failed to load/);
+
+    expect(waitForDatasetsReady).toHaveBeenCalledWith(60);
+    expect(probeSql).not.toHaveBeenCalled();
+  });
+
+  it("returns dataset states when all datasets are ready", async () => {
+    const listApps = vi.fn().mockResolvedValue([sampleApp]);
+    const createDeployment = vi.fn().mockResolvedValue(succeededDeployment);
+    const getApiKeys = vi.fn().mockResolvedValue({ api_key: "rk", api_key_2: null });
+    const api = fakeApi({ listApps, createDeployment, getApiKeys });
+
+    const datasets = [
+      { name: "a", status: "Ready" },
+      { name: "b", status: "Ready" },
+    ];
+    const fakeRuntime = {
+      waitForReady: vi.fn().mockResolvedValue(undefined),
+      waitForDatasetsReady: vi.fn().mockResolvedValue(datasets),
+    } as unknown as RuntimeClient;
+
+    const result = await runDeploy(
+      api,
+      { ...baseInputs, datasetReadyTimeoutSeconds: 60 },
+      { runtimeFactory: () => fakeRuntime },
+    );
+
+    expect(result.datasets).toEqual(datasets);
   });
 });

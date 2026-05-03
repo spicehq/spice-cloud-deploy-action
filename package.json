@@ -14,7 +14,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --sourcemap --minify",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --alias:punycode=./node_modules/punycode/punycode.js --outfile=dist/index.js --sourcemap --minify",
     "lint": "biome check src __tests__",
     "format": "biome format --write src __tests__",
     "test": "vitest run",
@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@spiceai/spice": "^3.1.0"
+    "@spiceai/spice": "^3.1.0",
+    "punycode": "^2.3.1"
   },
   "overrides": {
     "undici": "^6.23.0"

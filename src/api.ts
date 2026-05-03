@@ -64,8 +64,8 @@ export class SpiceApiClient {
     return this.request<Deployment>("POST", `/v1/apps/${appId}/deployments`, body);
   }
 
-  async getApiKeys(appId: number): Promise<{ primary?: string; secondary?: string }> {
-    return this.request<{ primary?: string; secondary?: string }>(
+  async getApiKeys(appId: number): Promise<{ api_key: string | null; api_key_2: string | null }> {
+    return this.request<{ api_key: string | null; api_key_2: string | null }>(
       "GET",
       `/v1/apps/${appId}/api-keys`,
     );

@@ -10,7 +10,7 @@ import {
   SpiceApiError,
 } from "./errors.js";
 import { type ActionInputs, readInputs } from "./inputs.js";
-import type { ProbeResult } from "./runtime.js";
+import type { DatasetState, ProbeResult } from "./runtime.js";
 
 async function run(): Promise<void> {
   let inputs: ActionInputs;
@@ -35,7 +35,7 @@ async function run(): Promise<void> {
   const api = new SpiceApiClient({ baseUrl: inputs.apiUrl, oauth });
 
   try {
-    const { app, deployment, probeResults } = await runDeploy(api, inputs);
+    const { app, deployment, probeResults, datasets } = await runDeploy(api, inputs);
 
     const appUrl = `https://${app.name}.spice.ai`;
     core.setOutput("app-id", String(app.id));
@@ -45,8 +45,9 @@ async function run(): Promise<void> {
     core.setOutput("deployment-status", deployment.status);
     core.setOutput("deployment-created-at", deployment.created_at ?? "");
     core.setOutput("test-results", JSON.stringify(probeResults));
+    core.setOutput("datasets", JSON.stringify(datasets));
 
-    await writeSummary({ app, deployment, appUrl, probeResults });
+    await writeSummary({ app, deployment, appUrl, probeResults, datasets });
 
     core.info(`Deployment ${deployment.id} status: ${deployment.status}`);
     core.info(`App URL: ${appUrl}`);
@@ -95,9 +96,10 @@ async function writeSummary(args: {
   deployment: { id: number | string; status: string; commit_sha?: string; branch?: string };
   appUrl: string;
   probeResults: ProbeResult[];
+  datasets: DatasetState[];
 }): Promise<void> {
   if (!process.env.GITHUB_STEP_SUMMARY) return;
-  const { app, deployment, appUrl, probeResults } = args;
+  const { app, deployment, appUrl, probeResults, datasets } = args;
   const statusBadge =
     deployment.status === "succeeded"
       ? "**succeeded**"
@@ -117,6 +119,23 @@ async function writeSummary(args: {
     ["Branch", deployment.branch ?? ""],
     ["Commit", deployment.commit_sha ?? ""],
   ]);
+
+  if (datasets.length > 0) {
+    summary.addHeading("Datasets", 3).addTable([
+      [
+        { data: "Name", header: true },
+        { data: "Status", header: true },
+        { data: "Source", header: true },
+        { data: "Error", header: true },
+      ],
+      ...datasets.map((d) => [
+        d.name,
+        d.status,
+        d.from ?? "",
+        d.error_message ?? d.error?.code ?? "",
+      ]),
+    ]);
+  }
 
   if (probeResults.length > 0) {
     summary.addHeading("Runtime probes", 3).addTable([

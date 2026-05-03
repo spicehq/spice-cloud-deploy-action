@@ -20,6 +20,25 @@ export interface ProbeResult {
   error?: string;
 }
 
+export interface DatasetState {
+  name: string;
+  from?: string;
+  status: string;
+  error?: { category?: string; type?: string; code?: string } | null;
+  error_message?: string | null;
+  acceleration_enabled?: boolean;
+  replication_enabled?: boolean;
+}
+
+export class DatasetReadinessError extends Error {
+  readonly datasets: DatasetState[];
+  constructor(message: string, datasets: DatasetState[]) {
+    super(message);
+    this.name = "DatasetReadinessError";
+    this.datasets = datasets;
+  }
+}
+
 export interface SdkLike {
   isSpiceReady(): Promise<boolean>;
   sqlJson(
@@ -126,6 +145,90 @@ export class RuntimeClient {
     return this.timedFetch("mcp", "/v1/mcp", body, "bearer", summarizeMcp);
   }
 
+  /**
+   * Fetch the runtime's dataset list with status. Hits `GET /v1/datasets?status=true`
+   * (see https://spiceai.org/docs/api/HTTP/get-datasets).
+   */
+  async getDatasets(): Promise<DatasetState[]> {
+    const url = `${this.baseUrl}/v1/datasets?status=true`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutSeconds * 1000);
+    try {
+      const res = await this.fetchImpl(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "x-api-key": this.apiKey,
+          "User-Agent": "spice-cloud-deploy-action",
+        },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          `GET /v1/datasets failed: ${res.status} ${res.statusText}: ${truncate(text, 300)}`,
+        );
+      }
+      const json = (await res.json()) as DatasetState[];
+      return Array.isArray(json) ? json : [];
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Poll `/v1/datasets?status=true` until every dataset is in a terminal-ready state
+   * (`ready`, `disabled`, or `refreshing`). Throws `DatasetReadinessError` immediately
+   * if any dataset reports `error`, or if the timeout expires while datasets are still
+   * `initializing`.
+   */
+  async waitForDatasetsReady(timeoutSeconds: number): Promise<DatasetState[]> {
+    if (timeoutSeconds <= 0) return [];
+    core.info(`Waiting up to ${timeoutSeconds}s for datasets to load.`);
+    const deadline = this.clock.now() + timeoutSeconds * 1000;
+    let last: DatasetState[] = [];
+
+    while (this.clock.now() < deadline) {
+      try {
+        last = await this.getDatasets();
+      } catch (err) {
+        core.debug(`getDatasets failed (will retry): ${(err as Error).message}`);
+        await this.clock.sleep(2_000);
+        continue;
+      }
+
+      const errored = last.filter((d) => normalizeStatus(d.status) === "error");
+      if (errored.length > 0) {
+        const detail = errored
+          .map((d) => `${d.name}: ${d.error_message ?? d.error?.code ?? "<no message>"}`)
+          .join("; ");
+        throw new DatasetReadinessError(
+          `${errored.length} dataset(s) failed to load: ${detail}`,
+          last,
+        );
+      }
+
+      const pending = last.filter((d) => normalizeStatus(d.status) === "initializing");
+      if (pending.length === 0) {
+        core.info(`All ${last.length} dataset(s) loaded.`);
+        return last;
+      }
+
+      core.info(
+        `${last.length - pending.length}/${last.length} dataset(s) loaded (still initializing: ${pending.map((d) => d.name).join(", ")})`,
+      );
+      await this.clock.sleep(3_000);
+    }
+
+    const stillPending = last
+      .filter((d) => normalizeStatus(d.status) === "initializing")
+      .map((d) => d.name);
+    throw new DatasetReadinessError(
+      `Datasets did not finish loading within ${timeoutSeconds}s (still initializing: ${stillPending.join(", ") || "<unknown>"}).`,
+      last,
+    );
+  }
+
   private async timed(name: string, fn: () => Promise<string | undefined>): Promise<ProbeResult> {
     const start = this.clock.now();
     try {
@@ -208,6 +311,10 @@ function defaultSdkFactory(config: {
 export function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max)}…`;
+}
+
+function normalizeStatus(status: string): string {
+  return (status ?? "").trim().toLowerCase();
 }
 
 function summarizeChat(body: string): string | undefined {
