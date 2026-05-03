@@ -124,12 +124,17 @@ async function writeSummary(args: {
         ? "**failed**"
         : `_${deployment.status}_`;
 
-  // The list-deployments endpoint sometimes returns Deployment objects without
-  // the `branch` field (and occasionally `commit_sha`), even when the create
-  // request explicitly set them. Fall back to the inputs we sent so the step
-  // summary stays accurate.
-  const branch = deployment.branch || inputs.branch || "";
-  const commitSha = deployment.commit_sha || inputs.commitSha || "";
+  // The list-deployments endpoint sometimes returns Deployment objects with
+  // the `branch` field missing (or, in observed runs, populated as an empty
+  // string) even when the create request explicitly set it. Fall back to the
+  // inputs we sent in either case so the step summary stays accurate. We
+  // intentionally treat an empty string from the API as equivalent to
+  // missing — an explicit empty branch carries no information for the
+  // summary, and the user-reported symptom was an empty Branch cell.
+  const branch = deployment.branch?.length ? deployment.branch : (inputs.branch ?? "");
+  const commitSha = deployment.commit_sha?.length
+    ? deployment.commit_sha
+    : (inputs.commitSha ?? "");
 
   const summary = core.summary.addHeading("Spice Cloud Deploy", 2).addTable([
     [

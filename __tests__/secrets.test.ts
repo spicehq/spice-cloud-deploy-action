@@ -36,6 +36,24 @@ describe("parseSecrets", () => {
       ]);
     });
 
+    it("preserves trailing whitespace in unquoted values (don't auto-trim secrets)", () => {
+      // The leading separator after `:` is stripped, but trailing whitespace
+      // is preserved verbatim. Whitespace-significant secret values should
+      // be quoted to make the boundaries explicit.
+      const result = parseSecrets("KEY: trailing-space ");
+      expect(result).toEqual([{ name: "KEY", value: "trailing-space " }]);
+    });
+
+    it("preserves leading whitespace inside quoted values", () => {
+      expect(parseSecrets('KEY: "  inner-leading"')).toEqual([
+        { name: "KEY", value: "  inner-leading" },
+      ]);
+    });
+
+    it("strips multiple spaces between ':' and a quoted value", () => {
+      expect(parseSecrets('KEY:    "value"')).toEqual([{ name: "KEY", value: "value" }]);
+    });
+
     it("ignores blank lines and #-comment lines", () => {
       expect(parseSecrets("\n# header\nFOO: bar\n  # indented\nBAZ: qux")).toEqual([
         { name: "FOO", value: "bar" },
