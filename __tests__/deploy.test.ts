@@ -128,7 +128,7 @@ describe("runDeploy", () => {
 
     await runDeploy(api, {
       ...baseInputs,
-      secretsRaw: "OPENAI=sk-1\nPG_PASS=hunter2",
+      secretsRaw: "OPENAI: sk-1\nPG_PASS: hunter2",
     });
 
     expect(upsertSecret).toHaveBeenNthCalledWith(1, 42, "OPENAI", "sk-1");

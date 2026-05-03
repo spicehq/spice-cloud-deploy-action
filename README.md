@@ -92,7 +92,7 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
 | `commit-sha`            | no | `${{ github.sha }}` | Commit SHA attributed to the deployment. |
 | `commit-message`        | no | head-commit message | Commit message attributed to the deployment. |
 | `debug`                 | no | `false` | Enable runtime debug mode for this deployment. |
-| `secrets`               | no | — | Multi-line `KEY=VALUE` app secrets to upsert before deploy. Values are masked. |
+| `secrets`               | no | — | YAML or JSON map of app secrets to upsert before deploy. Values are masked in logs. |
 | `wait-for-completion`   | no | `true` | Poll the deployment until it finishes. |
 | `timeout-seconds`       | no | `600` | Max wait when `wait-for-completion` is true. |
 | `poll-interval-seconds` | no | `10` | Seconds between status polls. |
@@ -159,8 +159,8 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
     client-secret: ${{ secrets.SPICE_CLIENT_SECRET }}
     app-name:      analytics
     secrets: |
-      OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-      PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
     test-sql: SELECT count(*) FROM taxi_trips
 ```
 

@@ -97,6 +97,7 @@ export class SpiceApiClient {
       };
       if (body !== undefined) headers["Content-Type"] = "application/json";
 
+      const startMs = Date.now();
       let res: Response;
       try {
         res = await this.fetchImpl(url, {
@@ -105,7 +106,9 @@ export class SpiceApiClient {
           body: body === undefined ? undefined : JSON.stringify(body),
         });
       } catch (err) {
+        const durationMs = Date.now() - startMs;
         lastError = err as Error;
+        core.info(`${method} ${path} → network error in ${durationMs}ms: ${lastError.message}`);
         if (attempt < this.maxAttempts) {
           await this.sleep(this.backoff(attempt));
           continue;
@@ -116,6 +119,9 @@ export class SpiceApiClient {
           url,
         );
       }
+
+      const durationMs = Date.now() - startMs;
+      core.info(`${method} ${path} → ${res.status} ${res.statusText} (${durationMs}ms)`);
 
       if (res.status === 204) {
         return undefined as T;

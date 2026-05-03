@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- `secrets` input now accepts the same YAML block mapping or JSON object form as `tags`, instead of multi-line `KEY=VALUE` lines. Existing key validation is unchanged (must start with a letter or underscore, alphanumeric + underscores only); values can contain any characters and are added to the runner's secret-mask list. Update your workflows to swap `=` for `:` between key and value.
+- Every Spice Cloud Management API call now logs `<METHOD> <path> → <status> <statusText> (<durationMs>ms)` so you can see latency for each request inline in the action logs. Network failures log `<METHOD> <path> → network error in <durationMs>ms: <message>`. Removed the redundant pre-call path logs in `deploy.ts` since the timing line covers them.
+
+### Fixed
+- The step-summary "Branch" cell was empty when the management API's list-deployments response omitted the `branch` field even though the create request set it. The summary now falls back to the `branch` and `commit-sha` inputs we sent so the right values surface even when the API echoes them inconsistently.
+
 ### Added
 - New `org` input. The action now constructs the `app-url` output as `https://spice.ai/<org>/<app-name>` (the canonical Spice Cloud portal URL pattern). When `org` is unset, it falls back to the owner part of `GITHUB_REPOSITORY`, which matches the Spice org slug for personal orgs and orgs created from a connected GitHub organization.
 - New `flight-url` input. The action now passes a regional Apache Arrow Flight gRPC endpoint to the `@spiceai/spice` SDK so the SQL probe uses gRPC instead of falling through to localhost. When `flight-url` is unset, it's derived from the resolved app's region as `<region>-prod-aws-flight.spiceai.io:443` (mirrors the data hostname with `-data` swapped for `-flight`). A `grpc+tls://` / `grpc://` scheme prefix on the input is stripped automatically.

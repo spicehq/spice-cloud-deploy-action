@@ -33,8 +33,8 @@ jobs:
             team: data-platform
             commit: ${{ github.sha }}
           secrets: |
-            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-            PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+            PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
           test-sql:        SELECT count(*) AS n FROM taxi_trips
           test-nsql:       Show me revenue by month for the last 6 months
           test-chat:       "Summarize today's top 3 trips"

@@ -47,7 +47,7 @@ async function run(): Promise<void> {
     core.setOutput("test-results", JSON.stringify(probeResults));
     core.setOutput("datasets", JSON.stringify(datasets));
 
-    await writeSummary({ app, deployment, appUrl, probeResults, datasets });
+    await writeSummary({ app, deployment, appUrl, probeResults, datasets, inputs });
 
     core.info(`Deployment ${deployment.id} status: ${deployment.status}`);
     core.info(`App URL: ${appUrl}`);
@@ -113,15 +113,23 @@ async function writeSummary(args: {
   appUrl: string;
   probeResults: ProbeResult[];
   datasets: DatasetState[];
+  inputs: ActionInputs;
 }): Promise<void> {
   if (!process.env.GITHUB_STEP_SUMMARY) return;
-  const { app, deployment, appUrl, probeResults, datasets } = args;
+  const { app, deployment, appUrl, probeResults, datasets, inputs } = args;
   const statusBadge =
     deployment.status === "succeeded"
       ? "**succeeded**"
       : deployment.status === "failed"
         ? "**failed**"
         : `_${deployment.status}_`;
+
+  // The list-deployments endpoint sometimes returns Deployment objects without
+  // the `branch` field (and occasionally `commit_sha`), even when the create
+  // request explicitly set them. Fall back to the inputs we sent so the step
+  // summary stays accurate.
+  const branch = deployment.branch || inputs.branch || "";
+  const commitSha = deployment.commit_sha || inputs.commitSha || "";
 
   const summary = core.summary.addHeading("Spice Cloud Deploy", 2).addTable([
     [
@@ -132,8 +140,8 @@ async function writeSummary(args: {
     ["URL", `<a href="${appUrl}">${appUrl}</a>`],
     ["Deployment", String(deployment.id)],
     ["Status", statusBadge],
-    ["Branch", deployment.branch ?? ""],
-    ["Commit", deployment.commit_sha ?? ""],
+    ["Branch", branch],
+    ["Commit", commitSha],
   ]);
 
   if (datasets.length > 0) {
