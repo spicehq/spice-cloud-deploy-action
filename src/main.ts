@@ -37,7 +37,7 @@ async function run(): Promise<void> {
   try {
     const { app, deployment, probeResults, datasets } = await runDeploy(api, inputs);
 
-    const appUrl = `https://${app.name}.spice.ai`;
+    const appUrl = buildAppUrl(app.name, inputs.org);
     core.setOutput("app-id", String(app.id));
     core.setOutput("app-name", app.name);
     core.setOutput("app-url", appUrl);
@@ -89,6 +89,22 @@ function handleError(err: unknown): void {
     return;
   }
   core.setFailed(`Unexpected error: ${String(err)}`);
+}
+
+/**
+ * Build the Spice Cloud portal URL for the deployed app.
+ *
+ * Apps live at `https://spice.ai/<org>/<app>` — there is no
+ * `https://<app>.spice.ai` host. The org slug is the user's Spice
+ * organization, which for personal orgs and connected GitHub orgs matches the
+ * GitHub owner of the repository. We use the `org` input when set, fall back
+ * to the owner part of `GITHUB_REPOSITORY`, and finally fall back to the
+ * org-less `https://spice.ai/apps` listing if neither is available.
+ */
+export function buildAppUrl(appName: string, orgInput: string | undefined): string {
+  const org = orgInput ?? process.env.GITHUB_REPOSITORY?.split("/", 1)[0];
+  if (org) return `https://spice.ai/${org}/${appName}`;
+  return `https://spice.ai/apps`;
 }
 
 async function writeSummary(args: {

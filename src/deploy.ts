@@ -2,7 +2,12 @@ import * as core from "@actions/core";
 import type { SpiceApiClient } from "./api.js";
 import { DeploymentFailedError, DeploymentTimeoutError, InputValidationError } from "./errors.js";
 import type { ActionInputs } from "./inputs.js";
-import { deriveRuntimeUrl, deriveRuntimeUrlFromCname } from "./inputs.js";
+import {
+  deriveFlightUrl,
+  deriveFlightUrlFromCname,
+  deriveRuntimeUrl,
+  deriveRuntimeUrlFromCname,
+} from "./inputs.js";
 import { buildProbePlans } from "./probes.js";
 import type { DatasetState, ProbeResult } from "./runtime.js";
 import { DatasetReadinessError, RuntimeClient } from "./runtime.js";
@@ -131,6 +136,21 @@ export function resolveRuntimeUrl(app: App, inputs: ActionInputs): string {
   );
 }
 
+/**
+ * Resolve the regional Flight gRPC endpoint (`host:port`) for the SDK. Prefer
+ * an explicit `flight-url` input, then derive from the app's cname (replacing
+ * `-data` with `-flight`), then from the app's region, then from the input
+ * region. Returns `undefined` if no source is available — callers fall back to
+ * letting the SDK use HTTP.
+ */
+export function resolveFlightUrl(app: App, inputs: ActionInputs): string | undefined {
+  if (inputs.flightUrl) return inputs.flightUrl;
+  if (app.cname) return deriveFlightUrlFromCname(app.cname);
+  if (app.region) return deriveFlightUrl(app.region);
+  if (inputs.region) return deriveFlightUrl(inputs.region);
+  return undefined;
+}
+
 async function maybeUpdateAppMetadata(
   api: SpiceApiClient,
   app: App,
@@ -217,13 +237,16 @@ async function runPostDeployChecks(
     core.setSecret(apiKey);
 
     const runtimeUrl = resolveRuntimeUrl(app, inputs);
+    const flightUrl = resolveFlightUrl(app, inputs);
     core.info(`Runtime URL: ${runtimeUrl}`);
+    if (flightUrl) core.info(`Flight URL: grpc+tls://${flightUrl}`);
 
     const runtime = deps.runtimeFactory
-      ? deps.runtimeFactory(apiKey, { ...inputs, runtimeUrl })
+      ? deps.runtimeFactory(apiKey, { ...inputs, runtimeUrl, flightUrl })
       : new RuntimeClient({
           apiKey,
           baseUrl: runtimeUrl,
+          flightUrl,
           warmupSeconds: inputs.testWarmupSeconds,
           timeoutSeconds: inputs.testTimeoutSeconds,
           clock: deps.clock,

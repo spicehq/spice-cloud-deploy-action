@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- New `org` input. The action now constructs the `app-url` output as `https://spice.ai/<org>/<app-name>` (the canonical Spice Cloud portal URL pattern). When `org` is unset, it falls back to the owner part of `GITHUB_REPOSITORY`, which matches the Spice org slug for personal orgs and orgs created from a connected GitHub organization.
+- New `flight-url` input. The action now passes a regional Apache Arrow Flight gRPC endpoint to the `@spiceai/spice` SDK so the SQL probe uses gRPC instead of falling through to localhost. When `flight-url` is unset, it's derived from the resolved app's region as `<region>-prod-aws-flight.spiceai.io:443` (mirrors the data hostname with `-data` swapped for `-flight`). A `grpc+tls://` / `grpc://` scheme prefix on the input is stripped automatically.
+
+### Fixed
+- The `app-url` output was previously `https://<app-name>.spice.ai`, which doesn't resolve. It is now `https://spice.ai/<org>/<app-name>` (e.g. `https://spice.ai/lukekim/home`).
+- SQL smoke test failed with `14 UNAVAILABLE: No connection established` because the SDK initialized a gRPC client with no `flightUrl` configured for Spice Cloud. The action now derives a regional flight URL by default; the SDK uses gRPC for SQL queries with HTTP fallback as it was designed to.
+
+### Added
 - Auto-capture a `repository` tag from `GITHUB_REPOSITORY` when set, sanitized to fit the API's tag-value rule (`/` → `_`). Users can override by setting `repository:` explicitly in the `tags` input.
 - New post-deploy dataset readiness check: poll `GET /v1/datasets?status=true` until every dataset reaches a terminal-ok state (`ready`, `disabled`, or `refreshing`); fail the job immediately on `error` or on timeout-while-pending — regardless of `fail-on-test-error`, which still only governs runtime-probe results. Statuses like `shuttingdown` and any unrecognized values are treated as still-pending so the loop never returns a false-positive "loaded". Configured via `dataset-ready-timeout-seconds` (default `300`, set `0` to skip). Dataset states are surfaced as a `datasets` action output and as a table in the GitHub job step summary.
 
