@@ -4,8 +4,8 @@ import { DeploymentFailedError, DeploymentTimeoutError, InputValidationError } f
 import type { ActionInputs } from "./inputs.js";
 import { deriveRuntimeUrl, deriveRuntimeUrlFromCname } from "./inputs.js";
 import { buildProbePlans } from "./probes.js";
-import type { ProbeResult } from "./runtime.js";
-import { RuntimeClient } from "./runtime.js";
+import type { DatasetState, ProbeResult } from "./runtime.js";
+import { DatasetReadinessError, RuntimeClient } from "./runtime.js";
 import { parseSecrets } from "./secrets.js";
 import { readSpicepod } from "./spicepod.js";
 import { mergeWithDefaultTags, parseTags } from "./tags.js";
@@ -21,6 +21,7 @@ export interface DeployResult {
   app: App;
   deployment: Deployment;
   probeResults: ProbeResult[];
+  datasets: DatasetState[];
 }
 
 const TERMINAL_STATUSES: ReadonlySet<DeploymentStatus> = new Set(["succeeded", "failed"]);
@@ -57,11 +58,14 @@ export async function runDeploy(
   }
 
   let probeResults: ProbeResult[] = [];
+  let datasets: DatasetState[] = [];
   if (final.status === "succeeded") {
-    probeResults = await runSmokeTests(api, app, inputs, deps);
+    const post = await runPostDeployChecks(api, app, inputs, deps);
+    probeResults = post.probeResults;
+    datasets = post.datasets;
   }
 
-  return { app, deployment: final, probeResults };
+  return { app, deployment: final, probeResults, datasets };
 }
 
 async function resolveApp(api: SpiceApiClient, inputs: ActionInputs): Promise<App> {
@@ -188,24 +192,27 @@ function buildDeploymentBody(inputs: ActionInputs): CreateDeploymentBody {
   return body;
 }
 
-async function runSmokeTests(
+async function runPostDeployChecks(
   api: SpiceApiClient,
   app: App,
   inputs: ActionInputs,
   deps: DeployDeps,
-): Promise<ProbeResult[]> {
+): Promise<{ probeResults: ProbeResult[]; datasets: DatasetState[] }> {
   const plans = buildProbePlans(inputs);
-  if (plans.length === 0) return [];
+  const willCheckDatasets = inputs.datasetReadyTimeoutSeconds > 0;
+  if (plans.length === 0 && !willCheckDatasets) {
+    return { probeResults: [], datasets: [] };
+  }
 
-  core.startGroup(`Run ${plans.length} runtime probe(s)`);
+  core.startGroup("Post-deploy checks");
   try {
     const keys = await api.getApiKeys(app.id);
-    const apiKey = keys.primary ?? keys.secondary;
+    const apiKey = keys.api_key ?? keys.api_key_2;
     if (!apiKey) {
-      const message = `Cannot run runtime probes: no API key returned for app ${app.id}.`;
+      const message = `Cannot run post-deploy checks: no API key returned for app ${app.id}.`;
       if (inputs.failOnTestError) throw new Error(message);
       core.warning(message);
-      return [];
+      return { probeResults: [], datasets: [] };
     }
     core.setSecret(apiKey);
 
@@ -228,14 +235,27 @@ async function runSmokeTests(
       const message = `Runtime warmup failed: ${(err as Error).message}`;
       if (inputs.failOnTestError) throw new Error(message);
       core.warning(message);
-      return [];
+      return { probeResults: [], datasets: [] };
     }
 
-    const results: ProbeResult[] = [];
+    let datasets: DatasetState[] = [];
+    if (willCheckDatasets) {
+      try {
+        datasets = await runtime.waitForDatasetsReady(inputs.datasetReadyTimeoutSeconds);
+      } catch (err) {
+        // Dataset readiness failures are always fatal once the check is opted in
+        // (i.e. `dataset-ready-timeout-seconds > 0`) — `fail-on-test-error` only
+        // governs runtime-probe results. The opt-out is `dataset-ready-timeout-seconds: 0`.
+        if (err instanceof DatasetReadinessError) datasets = err.datasets;
+        throw err;
+      }
+    }
+
+    const probeResults: ProbeResult[] = [];
     for (const plan of plans) {
       core.info(`→ ${plan.description}`);
       const result = await plan.run(runtime);
-      results.push(result);
+      probeResults.push(result);
       if (result.ok) {
         core.info(
           `✓ ${plan.name} (${result.durationMs}ms)${result.detail ? ` — ${result.detail}` : ""}`,
@@ -246,7 +266,7 @@ async function runSmokeTests(
         else core.warning(line);
       }
     }
-    return results;
+    return { probeResults, datasets };
   } finally {
     core.endGroup();
   }

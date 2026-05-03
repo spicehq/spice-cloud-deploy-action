@@ -149,6 +149,16 @@ inputs:
     description: Per-probe HTTP timeout in seconds.
     required: false
     default: "30"
+  dataset-ready-timeout-seconds:
+    description: |
+      Maximum seconds to wait for every dataset reported by `GET /v1/datasets?status=true`
+      to reach a terminal-ok state (`ready`, `disabled`, or `refreshing`) before running
+      runtime probes. The action fails the job immediately if any dataset enters `error`,
+      or if the timeout elapses while datasets are still pending — regardless of
+      `fail-on-test-error`, which only governs runtime-probe results. To disable the
+      dataset check entirely, set this to `0`.
+    required: false
+    default: "300"
   runtime-url:
     description: |
       Override the runtime base URL probes connect to. When unset, the URL is
@@ -187,6 +197,8 @@ outputs:
     description: ISO 8601 timestamp the deployment was created.
   test-results:
     description: JSON array of `{ name, ok, durationMs, detail?, error? }` for each runtime probe.
+  datasets:
+    description: JSON array of `{ name, status, from?, error?, error_message? }` from `GET /v1/datasets?status=true` after deployment.
 
 runs:
   using: node24
