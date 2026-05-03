@@ -97,13 +97,20 @@ inputs:
     default: "false"
   secrets:
     description: |
-      Newline-separated `KEY=VALUE` pairs to upsert as app secrets before deploy.
-      Lines starting with `#` are comments. Values are masked in logs.
+      App secrets to upsert before deploy, as a YAML or JSON map. Values are
+      added to the runner's secret-mask list so they don't appear in logs.
 
-      Example:
+      YAML form (recommended):
         secrets: |
-          OPENAI_API_KEY=<openai-api-key>
-          PG_PASSWORD=<pg-password>
+          OPENAI_API_KEY: <openai-api-key>
+          PG_PASSWORD: <pg-password>
+
+      JSON form:
+        secrets: '{"OPENAI_API_KEY":"<openai-api-key>","PG_PASSWORD":"<pg-password>"}'
+
+      Lines beginning with `#` are treated as comments. Secret values can
+      contain any characters; only the secret name is constrained (must
+      start with a letter or underscore, alphanumeric + underscores only).
     required: false
   wait-for-completion:
     description: Poll the deployment until it succeeds or fails.

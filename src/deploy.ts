@@ -51,7 +51,6 @@ export async function runDeploy(
 
   const body = buildDeploymentBody(inputs);
   core.startGroup("Trigger deployment");
-  core.info(`POST /v1/apps/${app.id}/deployments`);
   core.info(`Payload: ${JSON.stringify(body)}`);
   const deployment = await api.createDeployment(app.id, body);
   core.info(`Deployment created (id=${deployment.id}, status=${deployment.status}).`);
@@ -162,7 +161,7 @@ async function maybeUpdateAppMetadata(
   const merged = { ...(app.tags ?? {}), ...tags };
   const update: UpdateAppBody = { tags: merged };
   core.startGroup("Update app tags");
-  core.info(`PUT /v1/apps/${app.id} tags=${JSON.stringify(merged)}`);
+  core.info(`Tags: ${JSON.stringify(merged)}`);
   await api.updateApp(app.id, update);
   core.endGroup();
 }
@@ -192,7 +191,7 @@ async function maybeUpsertSecrets(
 
   core.startGroup(`Upsert ${secrets.length} secret(s)`);
   for (const secret of secrets) {
-    core.info(`POST /v1/apps/${app.id}/secrets — ${secret.name}`);
+    core.info(`Secret: ${secret.name}`);
     await api.upsertSecret(app.id, secret.name, secret.value);
   }
   core.endGroup();

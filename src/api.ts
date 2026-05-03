@@ -97,6 +97,7 @@ export class SpiceApiClient {
       };
       if (body !== undefined) headers["Content-Type"] = "application/json";
 
+      const startMs = Date.now();
       let res: Response;
       try {
         res = await this.fetchImpl(url, {
@@ -105,7 +106,9 @@ export class SpiceApiClient {
           body: body === undefined ? undefined : JSON.stringify(body),
         });
       } catch (err) {
+        const durationMs = Date.now() - startMs;
         lastError = err as Error;
+        core.info(`${method} ${path} → network error in ${durationMs}ms: ${lastError.message}`);
         if (attempt < this.maxAttempts) {
           await this.sleep(this.backoff(attempt));
           continue;
@@ -117,21 +120,44 @@ export class SpiceApiClient {
         );
       }
 
+      // Read the body before logging so the timing covers true end-to-end
+      // request latency (request send → response headers → full body received),
+      // not just time-to-first-byte. 204 No Content has no body to read.
+      let bodyText = "";
+      let bodyError: Error | undefined;
+      if (res.status !== 204) {
+        try {
+          bodyText = await res.text();
+        } catch (err) {
+          bodyError = err as Error;
+        }
+      }
+      const durationMs = Date.now() - startMs;
+      core.info(`${method} ${path} → ${res.status} ${res.statusText} (${durationMs}ms)`);
+
       if (res.status === 204) {
         return undefined as T;
       }
 
-      if (res.ok) {
-        if (res.status === 202 || res.status === 201 || res.status === 200) {
-          const text = await res.text();
-          if (!text) return undefined as T;
-          try {
-            return JSON.parse(text) as T;
-          } catch {
-            return text as unknown as T;
-          }
+      if (bodyError) {
+        if (attempt < this.maxAttempts) {
+          await this.sleep(this.backoff(attempt));
+          continue;
         }
-        return (await res.json()) as T;
+        throw new SpiceApiError(
+          `Failed to read response body for ${method} ${path}: ${bodyError.message}`,
+          res.status,
+          url,
+        );
+      }
+
+      if (res.ok) {
+        if (!bodyText) return undefined as T;
+        try {
+          return JSON.parse(bodyText) as T;
+        } catch {
+          return bodyText as unknown as T;
+        }
       }
 
       if (RETRYABLE_STATUSES.has(res.status) && attempt < this.maxAttempts) {
@@ -143,7 +169,7 @@ export class SpiceApiClient {
         continue;
       }
 
-      const errorBody = await readErrorBody(res);
+      const errorBody = parseErrorBody(bodyText);
       throw new SpiceApiError(
         formatApiError(method, path, res, errorBody),
         res.status,
@@ -170,8 +196,7 @@ export class SpiceApiClient {
   }
 }
 
-async function readErrorBody(res: Response): Promise<ApiErrorBody | string | undefined> {
-  const text = await res.text().catch(() => "");
+function parseErrorBody(text: string): ApiErrorBody | string | undefined {
   if (!text) return undefined;
   try {
     return JSON.parse(text) as ApiErrorBody;
