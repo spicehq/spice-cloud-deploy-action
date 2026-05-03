@@ -30,7 +30,10 @@ export function parseSecrets(raw: string | undefined): ParsedSecret[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
 
-  const entries = trimmed.startsWith("{") ? parseJsonObject(trimmed) : parseBlockMap(trimmed);
+  // For the JSON-form check we use the trimmed view, but the block-map parser
+  // needs the original `raw` so trailing whitespace on the last line (which
+  // could be part of a secret's value) is preserved.
+  const entries = trimmed.startsWith("{") ? parseJsonObject(trimmed) : parseBlockMap(raw);
   for (const { value } of entries) {
     if (value !== "") core.setSecret(value);
   }
@@ -83,7 +86,7 @@ function parseBlockMap(raw: string): ParsedSecret[] {
     }
 
     const name = line.slice(0, colon).trim();
-    const value = stripQuotes(line.slice(colon + 1).trim());
+    const value = parseValue(line.slice(colon + 1));
 
     validateName(name, `secrets line ${i + 1}`);
     if (seen.has(name)) {
@@ -95,14 +98,25 @@ function parseBlockMap(raw: string): ParsedSecret[] {
   return out;
 }
 
-function stripQuotes(value: string): string {
-  if (value.length < 2) return value;
-  const first = value.charAt(0);
-  const last = value.charAt(value.length - 1);
-  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-    return value.slice(1, -1);
+/**
+ * Extract a secret value from the substring after the first `:` separator.
+ *
+ * Strips leading whitespace (the canonical YAML `KEY: VALUE` separator) and
+ * a matching pair of outer quotes if present. Trailing whitespace and inner
+ * whitespace are preserved verbatim, so a secret value can contain any
+ * characters; users that need leading or trailing whitespace must wrap the
+ * value in matching single or double quotes.
+ */
+function parseValue(rest: string): string {
+  const ltrimmed = rest.replace(/^\s+/, "");
+  if (ltrimmed.length >= 2) {
+    const first = ltrimmed.charAt(0);
+    const last = ltrimmed.charAt(ltrimmed.length - 1);
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return ltrimmed.slice(1, -1);
+    }
   }
-  return value;
+  return ltrimmed;
 }
 
 function validateName(name: string, context: string): void {
