@@ -7,6 +7,7 @@ export interface ActionInputs {
   clientSecret: string;
   appId?: number;
   appName?: string;
+  org?: string;
   createAppIfMissing: boolean;
   region?: string;
   visibility: "public" | "private";
@@ -38,6 +39,7 @@ export interface ActionInputs {
   testTimeoutSeconds: number;
   datasetReadyTimeoutSeconds: number;
   runtimeUrl?: string;
+  flightUrl?: string;
   failOnTestError: boolean;
 }
 
@@ -49,6 +51,20 @@ export function deriveRuntimeUrl(region: string): string {
 
 export function deriveRuntimeUrlFromCname(cname: string): string {
   return `https://${cname}.spiceai.io`;
+}
+
+/**
+ * Build the regional Apache Arrow Flight gRPC endpoint as `host:port`.
+ * Spice Cloud's flight endpoint mirrors the data hostname but with `-data`
+ * swapped for `-flight`, e.g. `us-west-2-prod-aws-flight.spiceai.io:443`.
+ */
+export function deriveFlightUrl(region: string): string {
+  return `${region}-prod-aws-flight.spiceai.io:443`;
+}
+
+export function deriveFlightUrlFromCname(cname: string): string {
+  const flightCname = cname.endsWith("-data") ? `${cname.slice(0, -"-data".length)}-flight` : cname;
+  return `${flightCname}.spiceai.io:443`;
 }
 
 function getOptional(name: string): string | undefined {
@@ -181,11 +197,17 @@ export function readInputs(): ActionInputs {
   const runtimeUrlRaw = getOptional("runtime-url");
   const runtimeUrl = runtimeUrlRaw ? parseUrl("runtime-url", runtimeUrlRaw) : undefined;
 
+  // Flight URL is `host:port` (gRPC), not an HTTP URL — don't validate as URL.
+  // Strip an optional `grpc+tls://` / `grpc://` scheme so docs-style values work.
+  const flightUrlRaw = getOptional("flight-url");
+  const flightUrl = flightUrlRaw?.replace(/^grpc(\+tls)?:\/\//, "");
+
   return {
     clientId,
     clientSecret,
     appId,
     appName,
+    org: getOptional("org"),
     createAppIfMissing,
     region,
     visibility,
@@ -217,6 +239,7 @@ export function readInputs(): ActionInputs {
     testTimeoutSeconds: getRequiredInt("test-timeout-seconds", 30, { min: 1 }),
     datasetReadyTimeoutSeconds: getRequiredInt("dataset-ready-timeout-seconds", 300, { min: 0 }),
     runtimeUrl,
+    flightUrl,
     failOnTestError: getBool("fail-on-test-error", true),
   };
 }

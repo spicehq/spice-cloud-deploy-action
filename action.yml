@@ -29,6 +29,15 @@ inputs:
     description: Create the app if it does not exist. Requires `app-name`.
     required: false
     default: "false"
+  org:
+    description: |
+      Spice Cloud organization slug. Used to construct the `app-url` output
+      (`https://spice.ai/<org>/<app-name>`). When unset, the action falls back
+      to the owner part of `GITHUB_REPOSITORY` — which matches the Spice org
+      slug for personal orgs and for orgs created from a connected GitHub
+      organization. Set this explicitly only when your Spice org slug differs
+      from the GitHub repo owner.
+    required: false
   region:
     description: |
       Spice Cloud region (e.g. `us-east-1`, `us-west-2`).
@@ -161,10 +170,19 @@ inputs:
     default: "300"
   runtime-url:
     description: |
-      Override the runtime base URL probes connect to. When unset, the URL is
-      derived from the resolved app's region as
+      Override the runtime HTTP base URL probes connect to. When unset, the
+      URL is derived from the resolved app's region as
       `https://<region>-prod-aws-data.spiceai.io` (e.g.
       `https://us-east-1-prod-aws-data.spiceai.io`).
+    required: false
+  flight-url:
+    description: |
+      Override the Apache Arrow Flight gRPC endpoint the SQL probe connects
+      to (`host:port`, optionally prefixed with `grpc+tls://`). When unset,
+      it's derived from the app's region as
+      `<region>-prod-aws-flight.spiceai.io:443` (e.g.
+      `us-west-2-prod-aws-flight.spiceai.io:443`). Set this if your app
+      uses a custom Flight host.
     required: false
   fail-on-test-error:
     description: Fail the action when any probe fails. Set to `false` to record failures without failing the job.

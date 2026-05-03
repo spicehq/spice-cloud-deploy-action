@@ -118,7 +118,7 @@ Grant exactly the scopes for the features you use. The "All-in" row at the botto
 | --- | --- |
 | `app-id` | Resolved numeric app ID. |
 | `app-name` | Resolved app name. |
-| `app-url` | `https://<app-name>.spice.ai`. |
+| `app-url` | Portal URL of the deployed app: `https://spice.ai/<org>/<app-name>`. The `<org>` slug comes from the `org` input when set, otherwise the owner part of `GITHUB_REPOSITORY`. |
 | `deployment-id` | Created deployment ID. |
 | `deployment-status` | Final status (`queued`, `in_progress`, `succeeded`, `failed`). |
 | `deployment-created-at` | ISO 8601 timestamp the deployment was created. |

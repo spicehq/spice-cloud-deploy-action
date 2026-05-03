@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 import type { SpiceApiClient } from "../src/api.js";
-import { resolveRuntimeUrl, runDeploy } from "../src/deploy.js";
+import { resolveFlightUrl, resolveRuntimeUrl, runDeploy } from "../src/deploy.js";
 import {
   DeploymentFailedError,
   DeploymentTimeoutError,
@@ -305,6 +305,33 @@ describe("runDeploy", () => {
         { ...baseInputs, region: undefined, runtimeUrl: undefined },
       ),
     ).toThrow(/Cannot determine runtime URL/);
+  });
+
+  it("resolves flight URL by swapping `-data` for `-flight` in the cname", () => {
+    expect(resolveFlightUrl(sampleApp, baseInputs)).toBe(
+      "us-west-2-prod-aws-flight.spiceai.io:443",
+    );
+  });
+
+  it("resolves flight URL from app region when cname is missing", () => {
+    expect(resolveFlightUrl({ id: 1, name: "x", region: "us-east-1" }, baseInputs)).toBe(
+      "us-east-1-prod-aws-flight.spiceai.io:443",
+    );
+  });
+
+  it("respects explicit flight-url override (with scheme stripping)", () => {
+    expect(
+      resolveFlightUrl(sampleApp, { ...baseInputs, flightUrl: "custom-flight.example:443" }),
+    ).toBe("custom-flight.example:443");
+  });
+
+  it("returns undefined when no flight URL can be derived", () => {
+    expect(
+      resolveFlightUrl(
+        { id: 1, name: "x" },
+        { ...baseInputs, region: undefined, flightUrl: undefined },
+      ),
+    ).toBeUndefined();
   });
 
   it("runs all configured probes in order", async () => {
